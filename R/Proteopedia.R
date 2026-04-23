@@ -208,16 +208,12 @@ Calculate_AUC <- function(InputDirectory){
 #' @export
 Simplify_Data <- function(x){data.table::data.table(simplify(x, cutoff = 0.7))}
 #' @export
-Calculate_LFQ <- function(InputData, LFQ_colname, SILAC = F){    
-  if(SILAC == T){
-    tmp <- iq::fast_MaxLFQ(InputData[, .(protein_list = ProteinGroup, sample_list = Sample, id = Precursor.Id, quant = log2(Precursor.Quantity))]) 
-  } else {
-    tmp <- iq::fast_MaxLFQ(InputData[, .(protein_list = ProteinGroup, sample_list = Sample, id = Precursor.Id, quant = log2(Precursor.Normalised))]) 
-  }
+Calculate_LFQ <- function(InputData, LFQ_Col){    
+  tmp <- iq::fast_MaxLFQ(InputData[, .(protein_list = ProteinGroup, sample_list = Sample, id = Precursor.Id, quant = log2(Precursor.Normalised))])
   tmp <- data.table::data.table(tmp$estimate, Precursor_group = tmp$annotation, keep.rownames = "ProteinGroup") 
-  tmp <- data.table::melt.data.table(tmp, id.vars = c("ProteinGroup", "Precursor_group"), variable.name = "Sample", value.name = LFQ_colname) 
-  tmp <- tmp[ Precursor_group == "" & !is.na( get(LFQ_colname) ) ][, -"Precursor_group" ] 
-  tmp <- tmp[, (LFQ_colname) := 2^get(LFQ_colname)] 
+  tmp <- data.table::melt.data.table(tmp, id.vars = c("ProteinGroup", "Precursor_group"), variable.name = "Sample", value.name = LFQ_Col) 
+  tmp <- tmp[ Precursor_group == "" & !is.na( get(LFQ_Col) ) ][, -"Precursor_group" ] 
+  tmp <- tmp[, (LFQ_Col) := 2^get(LFQ_Col)] 
 }
 #' @export
 Merge_PrecursorData <- function(x, y){merge(x, y, by = c("ProteinGroup", "Sample"), all = T)}
@@ -291,169 +287,332 @@ Export_SampleRenameFile <- function(InputDirectory){
   } else {message("ERROR: No DIA-NN Report File Found")}
 }
 #' @export
-Process_LF_DIANN <- function(InputDirectory, CtlGroup, ProteotypicFiltering = F){
+Process_LF_DIANN <- function(InputDirectory, CtlGroup, ProteotypicFiltering = F, Version = 2.2){
   start.time <- Sys.time()
   set.seed(123)
-  message("Importing DIA-NN Report File")
-  {
-    setwd(InputDirectory)
-    if(length(list.files(pattern = "report.tsv")) > 0){
-      InputFile <- list.files(pattern = "report.tsv")[1]
-      PrecursorData <- data.table::fread(InputFile)[, .(Run, Protein.Group, Protein.Ids, First.Protein.Description, Genes, 
-                                             Stripped.Sequence, Precursor.Id, Proteotypic, Precursor.Normalised,    
-                                             Q.Value, Global.Q.Value, PG.Q.Value, Global.PG.Q.Value, Lib.Q.Value, 
-                                             Lib.PG.Q.Value)] |> data.table::setnames(c("Protein.Group", "Genes", "First.Protein.Description"), 
-                                                                                      c("ProteinGroup", "Gene", "ProteinDescription"))
-    } else {return(message("ERROR: No Input File Found"))}
-    
-    if(file.exists("Sample_Rename.csv") == TRUE){
-      Sample_Metadata <- data.table::fread("Sample_Rename.csv") 
-      PrecursorData$Sample <- Sample_Metadata$Renamed[match(unlist(PrecursorData$Run), Sample_Metadata$Run)]
-      PrecursorData <- PrecursorData[!is.na(Sample)]
+  if(Version >= 2.2){
+    message("Importing DIA-NN Report File")
+    {
+      setwd(InputDirectory)
+      if(length(list.files(pattern = "report.parquet")) > 0){
+        PrecursorData <- arrow::read_parquet(list.files(pattern = "report.parquet")[1],
+          col_select = c("Run", "Channel", "Protein.Group", "Stripped.Sequence", "Precursor.Id", "Proteotypic", 
+                         "Precursor.Normalised", "Q.Value", "PG.Q.Value", "Lib.Q.Value", "Lib.PG.Q.Value", 
+                         "Global.Q.Value", "Global.PG.Q.Value", "Quantity.Quality", "Channel.Q.Value")) |> 
+          data.table::setDT() |> data.table::setnames("Protein.Group", "ProteinGroup")
+      } else {return(message("ERROR: No Input File Found"))}
+      
+      if(file.exists("Sample_Rename.csv")){
+        Sample_Metadata <- data.table::fread("Sample_Rename.csv") 
+        PrecursorData$Sample <- Sample_Metadata$Renamed[match(unlist(PrecursorData$Run), Sample_Metadata$Run)]
+        PrecursorData <- PrecursorData[!is.na(Sample)]
+      }
+      
+      if(nrow(PrecursorData[Channel == "H"]) > 0){
+        return(message("ERROR: Label-Free Processing on SILAC Data"))
+      }
     }
-    
-    if(any(grepl("SILAC-", PrecursorData$Precursor.Id))){
-      return(message("ERROR: Label-Free Processing on SILAC Data"))
+    message("Defining Metadata")
+    {
+      PrecursorData[, Cell := gsub("(.*)_(.*)_(.*)_(.*)_R(\\d)","\\1", Sample)]
+      PrecursorData[, Conc := gsub("(.*)_(.*)_(.*)_(.*)_R(\\d)","\\2", Sample)]
+      PrecursorData[, Drug := gsub("(.*)_(.*)_(.*)_(.*)_R(\\d)","\\3", Sample)]
+      PrecursorData[, Time := gsub("(.*)_(.*)_(.*)_(.*)_R(\\d)","\\4", Sample)]
+      PrecursorData[, Replicate := gsub("(.*)_(.*)_(.*)_(.*)_R(\\d)","\\5", Sample)]
+      PrecursorData[, Sample := gsub("_0", "", Sample)]
+      PrecursorData[, Condition := gsub("(.*)_R\\d", "\\1", Sample)]
+      
+      # Order Samples
+      Sample_Order <- unique(PrecursorData[, .(Sample, Condition, Replicate)]) |> dplyr::arrange(!grepl(CtlGroup, Condition), Condition, Replicate)
+      PrecursorData$Sample <- factor(PrecursorData$Sample, levels = Sample_Order$Sample)
     }
-  }
-  message("Defining Metadata")
-  {
-    PrecursorData[, Cell := gsub("(.*)_(.*)_(.*)_(.*)_R(\\d)","\\1", Sample)]
-    PrecursorData[, Conc := gsub("(.*)_(.*)_(.*)_(.*)_R(\\d)","\\2", Sample)]
-    PrecursorData[, Drug := gsub("(.*)_(.*)_(.*)_(.*)_R(\\d)","\\3", Sample)]
-    PrecursorData[, Time := gsub("(.*)_(.*)_(.*)_(.*)_R(\\d)","\\4", Sample)]
-    PrecursorData[, Replicate := gsub("(.*)_(.*)_(.*)_(.*)_R(\\d)","\\5", Sample)]
-    PrecursorData[, Sample := gsub("_0", "", Sample)]
-    PrecursorData[, Condition := gsub("(.*)_R\\d", "\\1", Sample)]
-
-    # Order Samples
-    Sample_Order <- unique(PrecursorData[, .(Sample, Condition, Replicate)]) |> dplyr::arrange(!grepl(CtlGroup, Condition), Condition, Replicate)
-    PrecursorData$Sample <- factor(PrecursorData$Sample, levels = Sample_Order$Sample)
-  }
-  message("Filtering Precursors")
-  {
-    if(ProteotypicFiltering == T){PrecursorData <- PrecursorData[Proteotypic >= 1]} else {PrecursorData <- PrecursorData}
-    PrecursorData <- PrecursorData[Q.Value <= 0.01 & PG.Q.Value <= 0.05 & Lib.Q.Value <= 0.01 & Lib.PG.Q.Value <= 0.01] 
-    PrecursorData[, Precursor.Length := nchar(Stripped.Sequence)]
-  }
-  message("Compiling & Exporting Data")
-  {
-    data.table::fwrite(PrecursorData, "Filtered_PrecursorData.csv.gz")
-    LFQ <- Calculate_LFQ(PrecursorData, "LFQ")
-    tot_intensities <- PrecursorData[, .(Intensity = sum(Precursor.Normalised)), .(ProteinGroup, Sample)]
-    PrecursorCounts <- PrecursorData[, .(N_precursors = data.table::uniqueN(Precursor.Id)), .(ProteinGroup, Sample)]
-    proteotypic_counts <- PrecursorData[, .(N_precursors_proteotypic = sum(Proteotypic)), .(ProteinGroup, Sample)]
-    annotations <- unique(PrecursorData[, .(ProteinGroup, Sample, Condition, Replicate, ProteinDescription, Gene)])
-    ProteinData <- Reduce(Merge_PrecursorData, list(LFQ, tot_intensities, PrecursorCounts, proteotypic_counts, annotations))
-    data.table::fwrite(ProteinData, "LF_DIANN_Output.csv.gz")
-  }
-  message("Plotting Intensities")
-  {
-    Intensities_Data <- data.table::rbindlist(list(
-      PrecursorData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(Precursor.Normalised), Type = "Precursor Quantity")],
-      ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(LFQ), Type = "Protein MaxLFQ")],
-      ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(Intensity), Type = "Protein Intensity")]
-    ))
-    Intensities_Data[, Type := factor(Type, levels = c("Precursor Quantity", "Protein MaxLFQ", "Protein Intensity"))]   # Set plotting order
-    
-    Intensity_Plot <- Intensities_Data |> ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = `log2 quantity`, colour = Condition)) + 
-      ggplot2::geom_boxplot(outliers = FALSE) + ggplot2::scale_colour_manual(values = Proteopedia::NiceColourPalette, guide = "none") + 
-      ggplot2::facet_wrap("Type", scales = "free_x") + ggplot2::ylab("Log2 Value") + ggplot2::coord_flip() + 
-      ggplot2::theme(axis.title.y = ggplot2::element_blank())
-  }
-  message("Plotting Precursor, Peptide & Protein Counts")
-  {
-    all_counts <- PrecursorData[, lapply(.SD, data.table::uniqueN), .(Sample, Condition), .SDcols = c("Precursor.Id", "Stripped.Sequence", "ProteinGroup")]
-    facet_labels <- ggplot2::as_labeller(c(Precursor.Id = "Precursors", Stripped.Sequence = "Peptides", ProteinGroup = "Protein Groups")) # Create plot labellers for facets
-    
-    Count_Plot <- data.table::melt.data.table(all_counts, id.vars = c("Sample","Condition"), value.name = "IDs") |> 
-      ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = IDs/1000, fill = Condition, label = format(IDs, big.mark = ",", scientific = FALSE))) +
-      ggplot2::scale_fill_manual(values =Proteopedia::NiceColourPalette, guide = "none") + ggplot2::geom_bar(stat = "identity") + ggplot2::geom_text(size = 4, hjust = 1.2) +
-      ggplot2::facet_wrap("variable", scales = "free_x", labeller = facet_labels) + ggplot2::coord_flip() + ggplot2::ylab("No. IDs [x1,000]") + 
-      ggplot2::theme(axis.title.y = ggplot2::element_blank())
-  }
-  message("Plotting Data Completeness")
-  {
-    data_completeness <- rbind(Count_Proteins(ProteinData, "All"),
-                               Count_Proteins(ProteinData[N_precursors >= 2], "≥ 2"),
-                               Count_Proteins(ProteinData[N_precursors_proteotypic >= 2], "≥ 2 Proteotypic"))
-    
-    NAs_Plot <- data_completeness |> ggplot2::ggplot(ggplot2::aes(x = N_samples, y = cumulative_protein_N/1000, colour = Precursors))+
-      ggplot2::geom_point() + ggplot2::geom_line() + ggplot2::scale_colour_manual(values = c("All" = "black", "≥ 2" = "darkgrey", "≥ 2 Proteotypic" = "orange3")) +
-      ggplot2::labs(x = "No. Samples", y = "No. Proteins [x1,000]") +
-      ggplot2::scale_x_continuous( breaks = seq(1, 1000, 1)) +
-      ggplot2::scale_y_continuous( limits = c(0, max(data_completeness$cumulative_protein_N )/1000))+
-      ggplot2::theme(panel.grid.major = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
-                     panel.grid.minor = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
-                     legend.position = "inside", legend.position.inside = c(0.25, 0.25))
-  }
-  message("Plotting Data Skewing (No Output)")
-  {
-    SkewData <- data.table::data.table(PrecursorData[, .(Sample, Condition, Replicate)] |> unique())
-    SkewData[, `:=`(PearsonsSkew = 0, Median = 0, Mean = 0)]
-    for(RowIndex in 1:nrow(SkewData)){
-      SampleID <- SkewData$Sample[RowIndex]
-      SkewData$PearsonsSkew[RowIndex] <- Proteopedia::Calculate_PearsonsSkew(ProteinData[Sample == SampleID, LFQ])
-      SkewData$Median[RowIndex] <- median(ProteinData[Sample == SampleID, LFQ], na.rm = T)
-      SkewData$Mean[RowIndex] <- mean(ProteinData[Sample == SampleID, LFQ], na.rm = T)
+    message("Filtering Precursors")
+    {
+      if(ProteotypicFiltering == T){PrecursorData <- PrecursorData[Proteotypic >= 1]} else {PrecursorData <- PrecursorData}
+      PrecursorData <- PrecursorData[Q.Value <= 0.01 & PG.Q.Value <= 0.05 & Lib.Q.Value <= 0.01 & Lib.PG.Q.Value <= 0.01] 
+      PrecursorData[, Precursor.Length := nchar(Stripped.Sequence)]
     }
-    
-    SkewPlot <- ProteinData |> ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = LFQ, colour = Condition)) + 
-      ggplot2::geom_boxplot(outliers = FALSE) + ggplot2::scale_colour_manual(values = Proteopedia::NiceColourPalette, guide = "none") + 
-      ggplot2::ylab("Protein LFQ") + ggplot2::coord_flip() + ggplot2::scale_y_log10() +
-      ggplot2::geom_text(data = SkewData, aes(y = Median*2.5, label = paste0("Pearson's Skew\n", round(PearsonsSkew, 2))), size = 6) +
-      ggplot2::theme(axis.title.y = ggplot2::element_blank(), strip.background = ggplot2::element_blank(), strip.text.y = ggplot2::element_text(size = 26))
-  }
-  message("Calculating Missed Trypsinisation Sites")
-  {
-    PrecursorData <- PrecursorData[, MissedCleavage := grepl("[RK][^P]", Stripped.Sequence)]
-    PrecursorCount <- PrecursorData[, N := .N, by = Sample]
-    TrypsinData <- PrecursorData[MissedCleavage == TRUE, .(N = .N), by = .(Sample, Condition, MissedCleavage)]
-    
-    TrypsinData$PercentPrecursors <- 0
-    for(i in 1:nrow(TrypsinData)){
-      TrypsinData$PercentPrecursors[i] <- TrypsinData$N[i]/PrecursorCount$N[which(PrecursorCount$Sample == TrypsinData$Sample[i])]
+    message("Compiling & Exporting Data")
+    {
+      data.table::fwrite(PrecursorData, "Filtered_PrecursorData.csv.gz")
+      LFQ <- Calculate_LFQ(PrecursorData, "LFQ")
+      tot_intensities <- PrecursorData[, .(Intensity = sum(Precursor.Normalised)), .(ProteinGroup, Sample)]
+      PrecursorCounts <- PrecursorData[, .(N_precursors = data.table::uniqueN(Precursor.Id)), .(ProteinGroup, Sample)]
+      proteotypic_counts <- PrecursorData[, .(N_precursors_proteotypic = sum(Proteotypic)), .(ProteinGroup, Sample)]
+      annotations <- unique(PrecursorData[, .(ProteinGroup, Sample, Condition, Replicate, ProteinDescription, Gene)])
+      ProteinData <- Reduce(Merge_PrecursorData, list(LFQ, tot_intensities, PrecursorCounts, proteotypic_counts, annotations))
+      data.table::fwrite(ProteinData, "LF_DIANN_Output.csv.gz")
     }
-    
-    MissedCleavage_Plot <- TrypsinData |> ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = PercentPrecursors*100, fill = Condition)) + 
-      ggplot2::geom_bar(stat = "identity", position = "stack") + ggplot2::scale_fill_manual(values =Proteopedia::NiceColourPalette, guide = "none") +
-      ggplot2::labs(x = "", y = "Precursors with Missed Tryptic Sites (%)") + ggplot2::coord_flip() + 
-      ggplot2::lims(y = c(0, max(TrypsinData$PercentPrecursors*200)))
-  }
-  message("Plotting Precursor & Protein Variation")
-  {
-    precursor_CVs <- PrecursorData[, .(CV = Calculate_CV(Precursor.Normalised), N = .N), .(Precursor.Id, Condition)]
-    precursor_CVs <- precursor_CVs[, Rank := data.table::frank(CV), Condition] 
-    precursor_CVs$ID <- "Precursors"
-    
-    protein_CVs <- ProteinData[, .(CV = Calculate_CV(LFQ), N = .N), .(ProteinGroup, Condition)]  
-    protein_CVs <- protein_CVs[, Rank := data.table::frank(CV), Condition] 
-    protein_CVs$ID <- "Protein Groups"
-    
-    all_CVs <- precursor_CVs[, Precursor.Id := NULL] |> rbind(protein_CVs[, ProteinGroup := NULL])
-    
-    Variation_Plot <- all_CVs |> ggplot2::ggplot(ggplot2::aes(x = Rank/1000, y = CV, colour = Condition))+
-      ggplot2::geom_line() + ggplot2::labs(x = "No. IDs [x1,000]", y = "Coeff. of Variation [%]") +
-      ggplot2::scale_colour_manual(values =Proteopedia::NiceColourPalette) + ggplot2::coord_cartesian(ylim = c(0,50)) + 
-      ggplot2::facet_wrap(~ID, scales = "free") +
-      ggplot2::theme(panel.grid.major = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
-                     panel.grid.minor = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
-                     legend.position = "inside", legend.position.inside = c(0.6, 0.6))
-  }
-  message("Exporting QC Plots")
-  {
-    plot_design <- "AAAA
-                    BBBB
-                    CCDD
-                    EEEE"
-    
-    DIANN_QC_Plot <- Intensity_Plot + Count_Plot + patchwork::free(NAs_Plot, type = "label") + 
-      patchwork::free(MissedCleavage_Plot, type = "label") + patchwork::free(Variation_Plot, type = "label") +
-      patchwork::plot_layout(design = plot_design) + patchwork::plot_annotation(tag_levels = "A")
-    
-    pdf("PrecursorQC_DIANN_Plot.pdf", width = 18, height = 20)
-    print(DIANN_QC_Plot)
-    Proteopedia::Reset_Dev()
+    message("Plotting Intensities")
+    {
+      Intensities_Data <- data.table::rbindlist(list(
+        PrecursorData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(Precursor.Normalised), Type = "Precursor Quantity")],
+        ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(LFQ), Type = "Protein MaxLFQ")],
+        ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(Intensity), Type = "Protein Intensity")]
+      ))
+      Intensities_Data[, Type := factor(Type, levels = c("Precursor Quantity", "Protein MaxLFQ", "Protein Intensity"))]   # Set plotting order
+      
+      Intensity_Plot <- Intensities_Data |> ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = `log2 quantity`, colour = Condition)) + 
+        ggplot2::geom_boxplot(outliers = FALSE) + ggplot2::scale_colour_manual(values = Proteopedia::NiceColourPalette, guide = "none") + 
+        ggplot2::facet_wrap("Type", scales = "free_x") + ggplot2::ylab("Log2 Value") + ggplot2::coord_flip() + 
+        ggplot2::theme(axis.title.y = ggplot2::element_blank())
+    }
+    message("Plotting Precursor, Peptide & Protein Counts")
+    {
+      all_counts <- PrecursorData[, lapply(.SD, data.table::uniqueN), .(Sample, Condition), .SDcols = c("Precursor.Id", "Stripped.Sequence", "ProteinGroup")]
+      facet_labels <- ggplot2::as_labeller(c(Precursor.Id = "Precursors", Stripped.Sequence = "Peptides", ProteinGroup = "Protein Groups")) # Create plot labellers for facets
+      
+      Count_Plot <- data.table::melt.data.table(all_counts, id.vars = c("Sample","Condition"), value.name = "IDs") |> 
+        ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = IDs/1000, fill = Condition, label = format(IDs, big.mark = ",", scientific = FALSE))) +
+        ggplot2::scale_fill_manual(values =Proteopedia::NiceColourPalette, guide = "none") + ggplot2::geom_bar(stat = "identity") + ggplot2::geom_text(size = 4, hjust = 1.2) +
+        ggplot2::facet_wrap("variable", scales = "free_x", labeller = facet_labels) + ggplot2::coord_flip() + ggplot2::ylab("No. IDs [x1,000]") + 
+        ggplot2::theme(axis.title.y = ggplot2::element_blank())
+    }
+    message("Plotting Data Completeness")
+    {
+      data_completeness <- rbind(Count_Proteins(ProteinData, "All"),
+                                 Count_Proteins(ProteinData[N_precursors >= 2], "≥ 2"),
+                                 Count_Proteins(ProteinData[N_precursors_proteotypic >= 2], "≥ 2 Proteotypic"))
+      
+      NAs_Plot <- data_completeness |> ggplot2::ggplot(ggplot2::aes(x = N_samples, y = cumulative_protein_N/1000, colour = Precursors))+
+        ggplot2::geom_point() + ggplot2::geom_line() + ggplot2::scale_colour_manual(values = c("All" = "black", "≥ 2" = "darkgrey", "≥ 2 Proteotypic" = "orange3")) +
+        ggplot2::labs(x = "No. Samples", y = "No. Proteins [x1,000]") +
+        ggplot2::scale_x_continuous( breaks = seq(1, 1000, 1)) +
+        ggplot2::scale_y_continuous( limits = c(0, max(data_completeness$cumulative_protein_N )/1000))+
+        ggplot2::theme(panel.grid.major = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
+                       panel.grid.minor = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
+                       legend.position = "inside", legend.position.inside = c(0.25, 0.25))
+    }
+    message("Plotting Data Skewing (No Output)")
+    {
+      SkewData <- data.table::data.table(PrecursorData[, .(Sample, Condition, Replicate)] |> unique())
+      SkewData[, `:=`(PearsonsSkew = 0, Median = 0, Mean = 0)]
+      for(RowIndex in 1:nrow(SkewData)){
+        SampleID <- SkewData$Sample[RowIndex]
+        SkewData$PearsonsSkew[RowIndex] <- Proteopedia::Calculate_PearsonsSkew(ProteinData[Sample == SampleID, LFQ])
+        SkewData$Median[RowIndex] <- median(ProteinData[Sample == SampleID, LFQ], na.rm = T)
+        SkewData$Mean[RowIndex] <- mean(ProteinData[Sample == SampleID, LFQ], na.rm = T)
+      }
+      
+      SkewPlot <- ProteinData |> ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = LFQ, colour = Condition)) + 
+        ggplot2::geom_boxplot(outliers = FALSE) + ggplot2::scale_colour_manual(values = Proteopedia::NiceColourPalette, guide = "none") + 
+        ggplot2::ylab("Protein LFQ") + ggplot2::coord_flip() + ggplot2::scale_y_log10() +
+        ggplot2::geom_text(data = SkewData, aes(y = Median*2.5, label = paste0("Pearson's Skew\n", round(PearsonsSkew, 2))), size = 6) +
+        ggplot2::theme(axis.title.y = ggplot2::element_blank(), strip.background = ggplot2::element_blank(), strip.text.y = ggplot2::element_text(size = 26))
+    }
+    message("Calculating Missed Trypsinisation Sites")
+    {
+      PrecursorData <- PrecursorData[, MissedCleavage := grepl("[RK][^P]", Stripped.Sequence)]
+      PrecursorCount <- PrecursorData[, N := .N, by = Sample]
+      TrypsinData <- PrecursorData[MissedCleavage == TRUE, .(N = .N), by = .(Sample, Condition, MissedCleavage)]
+      
+      TrypsinData$PercentPrecursors <- 0
+      for(i in 1:nrow(TrypsinData)){
+        TrypsinData$PercentPrecursors[i] <- TrypsinData$N[i]/PrecursorCount$N[which(PrecursorCount$Sample == TrypsinData$Sample[i])]
+      }
+      
+      MissedCleavage_Plot <- TrypsinData |> ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = PercentPrecursors*100, fill = Condition)) + 
+        ggplot2::geom_bar(stat = "identity", position = "stack") + ggplot2::scale_fill_manual(values =Proteopedia::NiceColourPalette, guide = "none") +
+        ggplot2::labs(x = "", y = "Precursors with Missed Tryptic Sites (%)") + ggplot2::coord_flip() + 
+        ggplot2::lims(y = c(0, max(TrypsinData$PercentPrecursors*200)))
+    }
+    message("Plotting Precursor & Protein Variation")
+    {
+      precursor_CVs <- PrecursorData[, .(CV = Calculate_CV(Precursor.Normalised), N = .N), .(Precursor.Id, Condition)]
+      precursor_CVs <- precursor_CVs[, Rank := data.table::frank(CV), Condition] 
+      precursor_CVs$ID <- "Precursors"
+      
+      protein_CVs <- ProteinData[, .(CV = Calculate_CV(LFQ), N = .N), .(ProteinGroup, Condition)]  
+      protein_CVs <- protein_CVs[, Rank := data.table::frank(CV), Condition] 
+      protein_CVs$ID <- "Protein Groups"
+      
+      all_CVs <- precursor_CVs[, Precursor.Id := NULL] |> rbind(protein_CVs[, ProteinGroup := NULL])
+      
+      Variation_Plot <- all_CVs |> ggplot2::ggplot(ggplot2::aes(x = Rank/1000, y = CV, colour = Condition))+
+        ggplot2::geom_line() + ggplot2::labs(x = "No. IDs [x1,000]", y = "Coeff. of Variation [%]") +
+        ggplot2::scale_colour_manual(values =Proteopedia::NiceColourPalette) + ggplot2::coord_cartesian(ylim = c(0,50)) + 
+        ggplot2::facet_wrap(~ID, scales = "free") +
+        ggplot2::theme(panel.grid.major = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
+                       panel.grid.minor = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
+                       legend.position = "inside", legend.position.inside = c(0.6, 0.6))
+    }
+    message("Exporting QC Plots")
+    {
+      plot_design <- "AAAA
+                      BBBB
+                      CCDD
+                      EEEE"
+      
+      DIANN_QC_Plot <- Intensity_Plot + Count_Plot + patchwork::free(NAs_Plot, type = "label") + 
+        patchwork::free(MissedCleavage_Plot, type = "label") + patchwork::free(Variation_Plot, type = "label") +
+        patchwork::plot_layout(design = plot_design) + patchwork::plot_annotation(tag_levels = "A")
+      
+      pdf("PrecursorQC_DIANN_Plot.pdf", width = 18, height = 20)
+      print(DIANN_QC_Plot)
+      Proteopedia::Reset_Dev()
+    }
+  } else {
+    message("Importing DIA-NN Report File")
+    {
+      setwd(InputDirectory)
+      if(length(list.files(pattern = "report.tsv")) > 0){
+        InputFile <- list.files(pattern = "report.tsv")[1]
+        PrecursorData <- data.table::fread(InputFile)[, .(Run, Protein.Group, Protein.Ids, First.Protein.Description, Genes, 
+                                               Stripped.Sequence, Precursor.Id, Proteotypic, Precursor.Normalised,    
+                                               Q.Value, Global.Q.Value, PG.Q.Value, Global.PG.Q.Value, Lib.Q.Value, 
+                                               Lib.PG.Q.Value)] |> data.table::setnames(c("Protein.Group", "Genes", "First.Protein.Description"), 
+                                                                                        c("ProteinGroup", "Gene", "ProteinDescription"))
+      } else {return(message("ERROR: No Input File Found"))}
+      
+      if(file.exists("Sample_Rename.csv") == TRUE){
+        Sample_Metadata <- data.table::fread("Sample_Rename.csv") 
+        PrecursorData$Sample <- Sample_Metadata$Renamed[match(unlist(PrecursorData$Run), Sample_Metadata$Run)]
+        PrecursorData <- PrecursorData[!is.na(Sample)]
+      }
+      
+      if(any(grepl("SILAC-", PrecursorData$Precursor.Id))){
+        return(message("ERROR: Label-Free Processing on SILAC Data"))
+      }
+    }
+    message("Defining Metadata")
+    {
+      PrecursorData[, Cell := gsub("(.*)_(.*)_(.*)_(.*)_R(\\d)","\\1", Sample)]
+      PrecursorData[, Conc := gsub("(.*)_(.*)_(.*)_(.*)_R(\\d)","\\2", Sample)]
+      PrecursorData[, Drug := gsub("(.*)_(.*)_(.*)_(.*)_R(\\d)","\\3", Sample)]
+      PrecursorData[, Time := gsub("(.*)_(.*)_(.*)_(.*)_R(\\d)","\\4", Sample)]
+      PrecursorData[, Replicate := gsub("(.*)_(.*)_(.*)_(.*)_R(\\d)","\\5", Sample)]
+      PrecursorData[, Sample := gsub("_0", "", Sample)]
+      PrecursorData[, Condition := gsub("(.*)_R\\d", "\\1", Sample)]
+  
+      # Order Samples
+      Sample_Order <- unique(PrecursorData[, .(Sample, Condition, Replicate)]) |> dplyr::arrange(!grepl(CtlGroup, Condition), Condition, Replicate)
+      PrecursorData$Sample <- factor(PrecursorData$Sample, levels = Sample_Order$Sample)
+    }
+    message("Filtering Precursors")
+    {
+      if(ProteotypicFiltering == T){PrecursorData <- PrecursorData[Proteotypic >= 1]} else {PrecursorData <- PrecursorData}
+      PrecursorData <- PrecursorData[Q.Value <= 0.01 & PG.Q.Value <= 0.05 & Lib.Q.Value <= 0.01 & Lib.PG.Q.Value <= 0.01] 
+      PrecursorData[, Precursor.Length := nchar(Stripped.Sequence)]
+    }
+    message("Compiling & Exporting Data")
+    {
+      data.table::fwrite(PrecursorData, "Filtered_PrecursorData.csv.gz")
+      LFQ <- Calculate_LFQ(PrecursorData, "LFQ")
+      tot_intensities <- PrecursorData[, .(Intensity = sum(Precursor.Normalised)), .(ProteinGroup, Sample)]
+      PrecursorCounts <- PrecursorData[, .(N_precursors = data.table::uniqueN(Precursor.Id)), .(ProteinGroup, Sample)]
+      proteotypic_counts <- PrecursorData[, .(N_precursors_proteotypic = sum(Proteotypic)), .(ProteinGroup, Sample)]
+      annotations <- unique(PrecursorData[, .(ProteinGroup, Sample, Condition, Replicate, ProteinDescription, Gene)])
+      ProteinData <- Reduce(Merge_PrecursorData, list(LFQ, tot_intensities, PrecursorCounts, proteotypic_counts, annotations))
+      data.table::fwrite(ProteinData, "LF_DIANN_Output.csv.gz")
+    }
+    message("Plotting Intensities")
+    {
+      Intensities_Data <- data.table::rbindlist(list(
+        PrecursorData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(Precursor.Normalised), Type = "Precursor Quantity")],
+        ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(LFQ), Type = "Protein MaxLFQ")],
+        ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(Intensity), Type = "Protein Intensity")]
+      ))
+      Intensities_Data[, Type := factor(Type, levels = c("Precursor Quantity", "Protein MaxLFQ", "Protein Intensity"))]   # Set plotting order
+      
+      Intensity_Plot <- Intensities_Data |> ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = `log2 quantity`, colour = Condition)) + 
+        ggplot2::geom_boxplot(outliers = FALSE) + ggplot2::scale_colour_manual(values = Proteopedia::NiceColourPalette, guide = "none") + 
+        ggplot2::facet_wrap("Type", scales = "free_x") + ggplot2::ylab("Log2 Value") + ggplot2::coord_flip() + 
+        ggplot2::theme(axis.title.y = ggplot2::element_blank())
+    }
+    message("Plotting Precursor, Peptide & Protein Counts")
+    {
+      all_counts <- PrecursorData[, lapply(.SD, data.table::uniqueN), .(Sample, Condition), .SDcols = c("Precursor.Id", "Stripped.Sequence", "ProteinGroup")]
+      facet_labels <- ggplot2::as_labeller(c(Precursor.Id = "Precursors", Stripped.Sequence = "Peptides", ProteinGroup = "Protein Groups")) # Create plot labellers for facets
+      
+      Count_Plot <- data.table::melt.data.table(all_counts, id.vars = c("Sample","Condition"), value.name = "IDs") |> 
+        ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = IDs/1000, fill = Condition, label = format(IDs, big.mark = ",", scientific = FALSE))) +
+        ggplot2::scale_fill_manual(values =Proteopedia::NiceColourPalette, guide = "none") + ggplot2::geom_bar(stat = "identity") + ggplot2::geom_text(size = 4, hjust = 1.2) +
+        ggplot2::facet_wrap("variable", scales = "free_x", labeller = facet_labels) + ggplot2::coord_flip() + ggplot2::ylab("No. IDs [x1,000]") + 
+        ggplot2::theme(axis.title.y = ggplot2::element_blank())
+    }
+    message("Plotting Data Completeness")
+    {
+      data_completeness <- rbind(Count_Proteins(ProteinData, "All"),
+                                 Count_Proteins(ProteinData[N_precursors >= 2], "≥ 2"),
+                                 Count_Proteins(ProteinData[N_precursors_proteotypic >= 2], "≥ 2 Proteotypic"))
+      
+      NAs_Plot <- data_completeness |> ggplot2::ggplot(ggplot2::aes(x = N_samples, y = cumulative_protein_N/1000, colour = Precursors))+
+        ggplot2::geom_point() + ggplot2::geom_line() + ggplot2::scale_colour_manual(values = c("All" = "black", "≥ 2" = "darkgrey", "≥ 2 Proteotypic" = "orange3")) +
+        ggplot2::labs(x = "No. Samples", y = "No. Proteins [x1,000]") +
+        ggplot2::scale_x_continuous( breaks = seq(1, 1000, 1)) +
+        ggplot2::scale_y_continuous( limits = c(0, max(data_completeness$cumulative_protein_N )/1000))+
+        ggplot2::theme(panel.grid.major = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
+                       panel.grid.minor = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
+                       legend.position = "inside", legend.position.inside = c(0.25, 0.25))
+    }
+    message("Plotting Data Skewing (No Output)")
+    {
+      SkewData <- data.table::data.table(PrecursorData[, .(Sample, Condition, Replicate)] |> unique())
+      SkewData[, `:=`(PearsonsSkew = 0, Median = 0, Mean = 0)]
+      for(RowIndex in 1:nrow(SkewData)){
+        SampleID <- SkewData$Sample[RowIndex]
+        SkewData$PearsonsSkew[RowIndex] <- Proteopedia::Calculate_PearsonsSkew(ProteinData[Sample == SampleID, LFQ])
+        SkewData$Median[RowIndex] <- median(ProteinData[Sample == SampleID, LFQ], na.rm = T)
+        SkewData$Mean[RowIndex] <- mean(ProteinData[Sample == SampleID, LFQ], na.rm = T)
+      }
+      
+      SkewPlot <- ProteinData |> ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = LFQ, colour = Condition)) + 
+        ggplot2::geom_boxplot(outliers = FALSE) + ggplot2::scale_colour_manual(values = Proteopedia::NiceColourPalette, guide = "none") + 
+        ggplot2::ylab("Protein LFQ") + ggplot2::coord_flip() + ggplot2::scale_y_log10() +
+        ggplot2::geom_text(data = SkewData, aes(y = Median*2.5, label = paste0("Pearson's Skew\n", round(PearsonsSkew, 2))), size = 6) +
+        ggplot2::theme(axis.title.y = ggplot2::element_blank(), strip.background = ggplot2::element_blank(), strip.text.y = ggplot2::element_text(size = 26))
+    }
+    message("Calculating Missed Trypsinisation Sites")
+    {
+      PrecursorData <- PrecursorData[, MissedCleavage := grepl("[RK][^P]", Stripped.Sequence)]
+      PrecursorCount <- PrecursorData[, N := .N, by = Sample]
+      TrypsinData <- PrecursorData[MissedCleavage == TRUE, .(N = .N), by = .(Sample, Condition, MissedCleavage)]
+      
+      TrypsinData$PercentPrecursors <- 0
+      for(i in 1:nrow(TrypsinData)){
+        TrypsinData$PercentPrecursors[i] <- TrypsinData$N[i]/PrecursorCount$N[which(PrecursorCount$Sample == TrypsinData$Sample[i])]
+      }
+      
+      MissedCleavage_Plot <- TrypsinData |> ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = PercentPrecursors*100, fill = Condition)) + 
+        ggplot2::geom_bar(stat = "identity", position = "stack") + ggplot2::scale_fill_manual(values =Proteopedia::NiceColourPalette, guide = "none") +
+        ggplot2::labs(x = "", y = "Precursors with Missed Tryptic Sites (%)") + ggplot2::coord_flip() + 
+        ggplot2::lims(y = c(0, max(TrypsinData$PercentPrecursors*200)))
+    }
+    message("Plotting Precursor & Protein Variation")
+    {
+      precursor_CVs <- PrecursorData[, .(CV = Calculate_CV(Precursor.Normalised), N = .N), .(Precursor.Id, Condition)]
+      precursor_CVs <- precursor_CVs[, Rank := data.table::frank(CV), Condition] 
+      precursor_CVs$ID <- "Precursors"
+      
+      protein_CVs <- ProteinData[, .(CV = Calculate_CV(LFQ), N = .N), .(ProteinGroup, Condition)]  
+      protein_CVs <- protein_CVs[, Rank := data.table::frank(CV), Condition] 
+      protein_CVs$ID <- "Protein Groups"
+      
+      all_CVs <- precursor_CVs[, Precursor.Id := NULL] |> rbind(protein_CVs[, ProteinGroup := NULL])
+      
+      Variation_Plot <- all_CVs |> ggplot2::ggplot(ggplot2::aes(x = Rank/1000, y = CV, colour = Condition))+
+        ggplot2::geom_line() + ggplot2::labs(x = "No. IDs [x1,000]", y = "Coeff. of Variation [%]") +
+        ggplot2::scale_colour_manual(values =Proteopedia::NiceColourPalette) + ggplot2::coord_cartesian(ylim = c(0,50)) + 
+        ggplot2::facet_wrap(~ID, scales = "free") +
+        ggplot2::theme(panel.grid.major = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
+                       panel.grid.minor = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
+                       legend.position = "inside", legend.position.inside = c(0.6, 0.6))
+    }
+    message("Exporting QC Plots")
+    {
+      plot_design <- "AAAA
+                      BBBB
+                      CCDD
+                      EEEE"
+      
+      DIANN_QC_Plot <- Intensity_Plot + Count_Plot + patchwork::free(NAs_Plot, type = "label") + 
+        patchwork::free(MissedCleavage_Plot, type = "label") + patchwork::free(Variation_Plot, type = "label") +
+        patchwork::plot_layout(design = plot_design) + patchwork::plot_annotation(tag_levels = "A")
+      
+      pdf("PrecursorQC_DIANN_Plot.pdf", width = 18, height = 20)
+      print(DIANN_QC_Plot)
+      Proteopedia::Reset_Dev()
+    }
   }
   Proteopedia::End_Timer(Start = start.time)
 }
@@ -797,221 +956,407 @@ Analyse_LF_Proteins <- function(InputDirectory, ExpGroups, CtlGroups, MinPrecurs
 Process_StaticSILAC_DIANN <- function(InputDirectory, CtlGroup, ProteotypicFiltering = F){
     set.seed(123)
     start.time <- Sys.time()
-    message("Importing DIA-NN Report File")
-    {
-      setwd(InputDirectory)
-      if(length(list.files(pattern = "report.tsv")[1]) > 0){
-        InputFile <- list.files(pattern = "report.tsv")[1]
-        PrecursorData <- data.table::fread(InputFile)[, .(Run, Protein.Group, Protein.Ids, First.Protein.Description, Genes, 
-                                              Stripped.Sequence, Precursor.Id, Proteotypic, Precursor.Quantity,    
-                                              Precursor.Translated, Channel.Q.Value,
-                                              Q.Value, Global.Q.Value, PG.Q.Value, Global.PG.Q.Value, Lib.Q.Value, 
-                                              Lib.PG.Q.Value)] |> data.table::setnames(c("Protein.Group", "Genes", "First.Protein.Description"), 
-                                                                            c("ProteinGroup", "Gene", "ProteinDescription"))
-      } else {return(message("ERROR: No InputFile Found"))}
-      
-      if(file.exists("Sample_Rename.csv") == TRUE){
-        PrecursorData <- PrecursorData |> data.table::merge.data.table(fread("Sample_Rename.csv") |> data.table::setnames("Renamed", "Sample"))
+    if(Version >= 2.2){
+      message("Importing DIA-NN Report File")
+      {
+        setwd(InputDirectory)
+        if(length(list.files(pattern = "report.parquet")) > 0){
+          PrecursorData <- arrow::read_parquet(list.files(pattern = "report.parquet")[1],
+                                               col_select = c("Run", "Channel", "Protein.Group", "Stripped.Sequence", "Precursor.Id", "Proteotypic", 
+                                                              "Precursor.Normalised", "Q.Value", "PG.Q.Value", "Lib.Q.Value", "Lib.PG.Q.Value", 
+                                                              "Global.Q.Value", "Global.PG.Q.Value", "Quantity.Quality", "Channel.Q.Value")) |> 
+            data.table::setDT() |> data.table::setnames("Protein.Group", "ProteinGroup")
+        } else {return(message("ERROR: No Input File Found"))}
+        
+        if(file.exists("Sample_Rename.csv")){
+          Sample_Metadata <- data.table::fread("Sample_Rename.csv") 
+          PrecursorData$Sample <- Sample_Metadata$Renamed[match(unlist(PrecursorData$Run), Sample_Metadata$Run)]
+          PrecursorData <- PrecursorData[!is.na(Sample)]
+        }
+        
+        if(nrow(PrecursorData[Channel == "H"]) == 0){
+          return(message("ERROR: No Heavy Label Detected"))
+        }
       }
-    }
-    message("Defining Metadata")
-    {
-      PrecursorData[, Cell := gsub("(.*)_(.*)_(.*)_(.*)_R(.*)","\\1", Sample)]
-      PrecursorData[, Drug := gsub("(.*)_(.*)_(.*)_(.*)_R(.*)","\\2", Sample)]
-      PrecursorData[, Conc := gsub("(.*)_(.*)_(.*)_(.*)_R(.*)","\\3", Sample)]
-      PrecursorData[, Time := gsub("h", "", gsub("(.*)_(.*)_(.*)_(.*)_R(.*)","\\4", Sample))]
-      PrecursorData[, Replicate := gsub("(.*)_R(.*)", "\\2", Sample)]
-      PrecursorData[, Sample := gsub("0_", "", Sample)]
-      PrecursorData[, Condition := gsub("(.*)_R(.*)","\\1", Sample)]
-      
-      Sample_Order <- dplyr::arrange(unique(PrecursorData[, .(Sample, Condition, Replicate)]), !grepl(CtlGroup, Condition), Condition, Replicate)
-      PrecursorData[, Sample := factor(Sample, levels = Sample_Order$Sample)]
-    }
-    message("Filtering Precursors")
-    {
-      if(ProteotypicFiltering == T){PrecursorData <- PrecursorData[Proteotypic >= 1]} else {PrecursorData <- PrecursorData}
-      PrecursorData <- PrecursorData[Q.Value <= 0.01 & PG.Q.Value <= 0.05 & Lib.Q.Value <= 0.01 & Lib.PG.Q.Value <= 0.01 & Channel.Q.Value <= 0.01]
-      PrecursorData[Precursor.Quantity == 0, Precursor.Quantity   := NA]
-      PrecursorData[Precursor.Translated == 0, Precursor.Translated := NA]
-      PrecursorData <- PrecursorData[!is.na(Precursor.Quantity)]
-    }
-    message("Normalising Precursor Quantities")
-    {
-      PrecursorData[, Precursor.Quantity   := Precursor.Quantity/sum(Precursor.Quantity)*PrecursorData[, sum(Precursor.Quantity), Run][, median(V1)], by = Run]
-      PrecursorData[, Precursor.Translated := Precursor.Translated/sum(Precursor.Translated, na.rm = TRUE)*PrecursorData[, sum(Precursor.Quantity), Run][, median(V1)], Run]
-    }
-    message("Processing SILAC Labels")
-    {
-      if(PrecursorData[Precursor.Id %like% "SILAC-.-L" & Precursor.Id %like% "SILAC-.-H", .N] != 0){
-        message("ERROR: Multi-Label Precursors Detected")
-        MultiLabelDetection = T} else {MultiLabelDetection = F}
-      
-      PrecursorData[data.table::like(Precursor.Id, "SILAC-.-L"), Label := "L"]
-      PrecursorData[data.table::like(Precursor.Id, "SILAC-.-H"), Label := "H"]
-      PrecursorData[,Precursor.Id.nolabels := gsub("SILAC-.-.", "SILAC", Precursor.Id)]
-      
-      FullIsotopeRatio <- PrecursorData[!is.na(Precursor.Translated) & !is.na(Label), .(LabelIntensity = sum(Precursor.Translated)), by = list(Sample, Condition, Replicate, Label)] |> 
-        data.table::merge.data.table(PrecursorData[!is.na(Precursor.Translated) & !is.na(Label), .(TotalIntensity = sum(Precursor.Translated)), by = list(Sample, Condition, Replicate)])
-      FullIsotopeRatio[, Prop := LabelIntensity/TotalIntensity]
-      
-      IsotopeIncorporation <- FullIsotopeRatio |> ggplot2::ggplot(ggplot2::aes(x = gsub("_", " ", Sample), y = Prop, fill = Condition, alpha = Label)) +
-        ggplot2::scale_fill_manual(values =Proteopedia::NiceColourPalette, guide = "none") + ggplot2::geom_bar(stat = "identity", position = "stack") +
-        ggplot2::scale_alpha_manual(values = c("H" = 0.5, "L" = 1), guide = "none") + ggplot2::ylab("Label Incorporation Ratio") +
-        ggplot2::theme(axis.title.x = ggplot2::element_blank(), axis.text.x = ggplot2::element_text(angle = 90, hjust = 1, vjust = 0.5))
-      
-      IntensitiesRatioData <- PrecursorData |> data.table::dcast(Run+ProteinGroup+Protein.Ids+ProteinDescription+Gene+Stripped.Sequence+
-                                                                 Proteotypic+Sample+Cell+Drug+Conc+Time+Replicate+Condition+Precursor.Id.nolabels ~Label, 
-                                                                 value.var = "Precursor.Translated")
-      
-      IntensitiesRatioData <- IntensitiesRatioData[!is.na(H) & H > 0 & !is.na(L) & L > 0]
-      IntensitiesRatioData <- IntensitiesRatioData[,.(H = sum(H, na.rm = T), L = sum(L, na.rm = T), .N), .(ProteinGroup, ProteinDescription, Gene, Sample)]
-      IntensitiesRatioData[, Ratio := H/L]
-      data.table::fwrite(IntensitiesRatioData, "IntensitiesRatioData.csv")
-    }
-    message("Compiling & Exporting Data")
-    {
-      PrecursorData[, Precursor.Length := nchar(Stripped.Sequence)]
-      data.table::fwrite(PrecursorData, "Filtered_PrecursorData.csv.gz")
-      
-      LFQ_T <- Proteopedia::Calculate_LFQ(PrecursorData, "LFQ", SILAC = T)
-      Intensity_T <- PrecursorData[,.(Intensity = sum(Precursor.Quantity)), .(ProteinGroup, Sample)]
-      Counts_T <- PrecursorData[, .(N_precursors = uniqueN(Precursor.Id), N_precursors_proteotypic = sum(Proteotypic)), .(ProteinGroup, Sample)]
-      
-      LFQ_L <- Proteopedia::Calculate_LFQ(PrecursorData[Label == "L"], "LFQ_L", SILAC = T)
-      Intensity_L <- PrecursorData[Label == "L",.(Intensity_L = sum(Precursor.Quantity)), .(ProteinGroup, Sample)]
-      Counts_L <- PrecursorData[Label == "L" , .(N_precursors_L = uniqueN(Precursor.Id), N_precursors_proteotypic_L = sum(Proteotypic)), .(ProteinGroup, Sample)]
-      
-      LFQ_H <- Proteopedia::Calculate_LFQ(PrecursorData[Label == "H"], "LFQ_H", SILAC = T)
-      Intensity_H <- PrecursorData[Label == "H",.(Intensity_H = sum(Precursor.Quantity)), .(ProteinGroup, Sample)]
-      Counts_H <- PrecursorData[Label == "H" , .(N_precursors_H = uniqueN(Precursor.Id), N_precursors_proteotypic_H = sum(Proteotypic)), .(ProteinGroup, Sample)]
+      message("Defining Metadata")
+      {
+        PrecursorData[, Cell := gsub("(.*)_(.*)_(.*)_(.*)_(.*)$","\\1", Sample)]
+        PrecursorData[, Drug := gsub("(.*)_(.*)_(.*)_(.*)_(.*)$","\\2", Sample)]
+        PrecursorData[, Conc := gsub("(.*)_(.*)_(.*)_(.*)_(.*)$","\\3", Sample)]
+        PrecursorData[, Time := gsub("(.*)_(.*)_(.*)_(.*)_(.*)$","\\4", Sample)]
+        PrecursorData[, Sample := gsub("0_", "", Sample)]
+        PrecursorData[, Condition := gsub("(.*)_(.*)$","\\1", Sample)]
+        PrecursorData[, Replicate := gsub("(.*)_(.*)$", "\\2", Sample)]
 
-      
-      #LFQ_Ratio <- PrecursorData |> data.table::dcast(Run+ProteinGroup+Protein.Ids+ProteinDescription+Gene+Stripped.Sequence+
-      #                                     Proteotypic+Sample+Cell+Drug+Conc+Time+Replicate+Condition+Precursor.Id.nolabels ~Label, 
-      #                                   value.var = "Precursor.Translated") 
-      #LFQ_Ratio[, Precursor.Quantity := H/L]
-      #LFQ_Ratio |> data.table::setnames("Precursor.Id.nolabels", "Precursor.Id")
-      #LFQ_Ratio <- Proteopedia::Calculate_LFQ(LFQ_Ratio[!is.na(Precursor.Quantity)], "LFQ_Ratio", SILAC = T)
-      
-      Annotations <- unique(PrecursorData[, .(ProteinGroup, Run, Sample, Condition, Cell, Drug, Conc, Time, Replicate, ProteinDescription, Gene)])
-      ProteinData <- Reduce(Proteopedia::Merge_PrecursorData, list(LFQ_T, LFQ_H, LFQ_L, Intensity_T, Intensity_H, Intensity_L, Counts_T, Counts_H, Counts_L, Annotations))                               
-      ProteinData[, LFQ_Ratio := LFQ_H/LFQ_L]
-      data.table::fwrite(ProteinData, "SILAC_DIANN_Output.csv.gz")
-    }
-    message("Plotting Intensities")
-    {  
-      PrecursorData[, Label := gsub("L", "Light", Label)]
-      PrecursorData[, Label := gsub("H", "Heavy", Label)]
-      
-      IntensitiesData <- data.table::rbindlist(list(
-        PrecursorData[!is.na(Label), .(Sample, Condition, Replicate, Label, `log2 quantity` = log2(Precursor.Quantity), Type = "Precursor Quantity")],
-        ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(LFQ_L), Label = "Light", Type = "Max. Protein LFQ")],
-        ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(Intensity_L), Label = "Light", Type = "Protein Intensity")],
-        ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(LFQ_H), Label = "Heavy", Type = "Max. Protein LFQ")],
-        ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(Intensity_H), Label = "Heavy", Type = "Protein Intensity")],
-        ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(LFQ), Label = "Total", Type = "Max. Protein LFQ")],
-        ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(Intensity), Label = "Total", Type = "Protein Intensity")]
-      ), use.names = TRUE)
-      IntensitiesData[, Type := factor(Type, levels = c("Precursor Quantity", "Max. Protein LFQ", "Protein Intensity"))]
-      
-      IntensityPlot <- IntensitiesData |> ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = `log2 quantity`, colour = Condition, alpha = Label)) + 
-        ggplot2::geom_boxplot(outliers = FALSE)+
-        ggplot2::scale_colour_manual(values =Proteopedia::NiceColourPalette, guide = "none") + ggplot2::scale_alpha_manual(values = c("Heavy" = 0.5, "Light" = 1, "Total" = 1), guide = "none") + 
-        ggplot2::facet_grid(cols = ggplot2::vars(Type), rows = ggplot2::vars(Label), scales = "free_x") + 
-        ggplot2::ylab(expression("Log"[2]~"Value")) + ggplot2::coord_flip() + ggplot2::theme(axis.title.y = ggplot2::element_blank(), strip.background = ggplot2::element_blank(), strip.text.y = ggplot2::element_text(size = 26))
-    }
-    message("Plotting Precursor, Peptide & Protein Counts")
-    {
-      CountPlot <- data.table::melt(PrecursorData[!is.na(Label), lapply(.SD, uniqueN), .(Sample, Condition, Label), .SDcols = c("Precursor.Id", "Stripped.Sequence", "ProteinGroup")], 
-                        id.vars = c("Sample","Condition", "Label"), value.name = "IDs") |> 
-        ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = IDs/1000, fill = Condition, alpha = Label, 
-                                     label = format(IDs, big.mark = ",", scientific = FALSE))) +
-        ggplot2::scale_fill_manual(values =Proteopedia::NiceColourPalette, guide = "none") + ggplot2::geom_bar(stat = "identity") + ggplot2::geom_text(size = 4, hjust = 1.1) +
-        ggplot2::facet_grid(ggplot2::vars(Label), ggplot2::vars(variable), scales = "free_x", 
-                   labeller = ggplot2::as_labeller(c(Precursor.Id = "Precursors", Stripped.Sequence = "Peptides", ProteinGroup = "Protein Groups", 
-                                            Light = "Light", Heavy = "Heavy"))) + 
-        ggplot2::coord_flip() + ggplot2::ylab("No. IDs [x1,000]") + ggplot2::scale_alpha_manual(values = c("Heavy" = 0.5, "Light" = 1), guide = "none") +
-        ggplot2::theme(axis.title.y = ggplot2::element_blank(), strip.background = ggplot2::element_blank(), 
-                                                        strip.text.y = ggplot2::element_text(size = 26))
-    }
-    message("Calculating Data Completeness")
-    {
-      CompletenessData <- rbind(Proteopedia::Count_Proteins(ProteinData, "All"), Proteopedia::Count_Proteins(ProteinData[N_precursors >= 2], "≥ 2"),
-                                            Proteopedia::Count_Proteins(ProteinData[N_precursors_proteotypic >= 2], "≥ 2 Proteotypic"))
-      
-      NAsPlot <- CompletenessData |> ggplot2::ggplot(ggplot2::aes(x = N_samples, y = cumulative_protein_N/1000, colour = Precursors))+
-        ggplot2::geom_point() + ggplot2::geom_line() + ggplot2::scale_colour_manual(values = c("All" = "black", "≥ 2" = "darkgrey", "≥ 2 Proteotypic" = "orange3")) +
-        ggplot2::labs(x = "No. Samples", y = "No. Proteins [x1,000]") + ggplot2::scale_x_continuous( breaks = seq(1, 1000, 1)) +
-        ggplot2::scale_y_continuous( limits = c(0, max(CompletenessData$cumulative_protein_N)/1000))+
-        ggplot2::theme(panel.grid.major = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
-              panel.grid.minor = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
-              legend.position = "inside", legend.position.inside = c(0.25, 0.25))
-    }
-    message("Calculating Channel Skewing")
-    {
-      SkewData <- data.table::data.table(meta)
-      SkewData[, `:=`(PearsonsSkewRatio = 0, PearsonsSkew_L = 0, PearsonsSkew_H = 0, Median = 0, Mean = 0)]
-      for(RowIndex in 1:nrow(SkewData)){
-        SampleID <- SkewData$Sample[RowIndex]
-        SkewData$PearsonsSkewRatio[RowIndex] <- Proteopedia::Calculate_PearsonsSkew(ProteinData[Sample == SampleID, LFQ_Ratio])
-        SkewData$PearsonsSkew_L[RowIndex] <- Proteopedia::Calculate_PearsonsSkew(ProteinData[Sample == SampleID, LFQ_L])
-        SkewData$PearsonsSkew_H[RowIndex] <- Proteopedia::Calculate_PearsonsSkew(ProteinData[Sample == SampleID, LFQ_H])
-        SkewData$Median[RowIndex] <- median(ProteinData[Sample == SampleID, LFQ_Ratio], na.rm = T)
-        SkewData$Mean[RowIndex] <- mean(ProteinData[Sample == SampleID, LFQ_Ratio], na.rm = T)
+        Sample_Order <- dplyr::arrange(unique(PrecursorData[, .(Sample, Condition, Replicate)]), !grepl(CtlGroup, Condition), Condition, Replicate)
+        PrecursorData[, Sample := factor(Sample, levels = Sample_Order$Sample)]
       }
-  
-      SkewPlot <- ProteinData |> ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = LFQ_Ratio, colour = Condition)) + 
-        ggplot2::geom_boxplot(outliers = FALSE) + ggplot2::scale_colour_manual(values =Proteopedia::NiceColourPalette, guide = "none") + 
-        ggplot2::ylab("Heavy:Light Protein LFQ Ratio") + ggplot2::coord_flip() + 
-        ggplot2::geom_text(data = SkewData, aes(y = Median*2, label = paste0("Pearson's Skew\n", round(PearsonsSkewRatio, 2))), size = 6) +
-        ggplot2::theme(axis.title.y = ggplot2::element_blank(), strip.background = ggplot2::element_blank(), strip.text.y = ggplot2::element_text(size = 26))
-    }
-    message("Plotting Missed Trypsinisation Sites")
-    {
-      TrypsinData <- PrecursorData |> data.table::copy()
-      TrypsinData[, MissedTrypsin := grepl("[RK][^P]", Stripped.Sequence)]
-      TrypsinData[, N_Trypsin := .N, by = .(Sample, MissedTrypsin, Label)]
-      TrypsinData[, N_Sample := .N, by = .(Sample, Label)]
-      TrypsinData <- TrypsinData[MissedTrypsin == T, .(Sample, Condition, Replicate, Label, N_Trypsin, N_Sample)] |> dplyr::distinct()
-      TrypsinData[, PercentTrypsin := (N_Trypsin/N_Sample)*100]
-      
-      MissedCleavagePlot <- TrypsinData |> ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = PercentTrypsin, fill = Condition, alpha = Label)) + 
-        ggplot2::geom_bar(stat = "identity", position = "stack") + ggplot2::scale_fill_manual(values =Proteopedia::NiceColourPalette, guide = "none") + 
-        ggplot2::labs(y = "Precursors with Missed Tryptic Sites (%)") + ggplot2::scale_alpha_manual(values = c("Heavy" = 0.5, "Light" = 1), guide = "none") +
-        ggplot2::coord_flip() +
-        ggplot2::theme(axis.title.y = ggplot2::element_blank(), strip.background = ggplot2::element_blank(), 
-                       strip.text.y = ggplot2::element_text(size = 26))
-    }
-    message("Calculating Precursor & Protein Variation")
-    {
-      PrecursorCVs <- PrecursorData[, .(CV = Proteopedia::Calculate_CV(Precursor.Translated), N = .N), .(Precursor.Id, Condition, Label)]
-      PrecursorCVs <- PrecursorCVs[N >= 3]  
-      PrecursorCVs[, rank := data.table::frank(CV), .(Condition, Label)] 
-      PrecursorCVs[, ID := "Precursors"]
-      
-      ProteinCVs <- ProteinData[, .(CV = Proteopedia::Calculate_CV(LFQ_L), N = .N), .(ProteinGroup, Condition)][, Label := "Light"] |> 
-                      rbind(ProteinData[, .(CV = Proteopedia::Calculate_CV(LFQ_H), N = .N), .(ProteinGroup, Condition)][, Label := "Heavy"])
-      ProteinCVs <- ProteinCVs[N >= 3]
-      ProteinCVs <- ProteinCVs[, rank := data.table::frank(CV), .(Condition, Label)] 
-      ProteinCVs[, ID := "Protein Groups"]
-      
-      AllCVs <- PrecursorCVs[, Precursor.Id := NULL] |> rbind(ProteinCVs[, ProteinGroup := NULL])
-      
-      VariationPlot <- AllCVs |> ggplot2::ggplot(ggplot2::aes(x = rank/1000, y = CV, colour = gsub("_", " ", Condition), alpha = Label)) +
-        ggplot2::geom_line() + ggplot2::labs(x = "No. IDs [x1,000]", y = "Variation [%]") + ggplot2::scale_colour_manual(values =Proteopedia::NiceColourPalette, name = "Condition") +
-        ggplot2::coord_cartesian(ylim = c(0,50)) + ggplot2::facet_wrap(~ID, scales = "free") + 
-        ggplot2::scale_alpha_manual(values = c("Heavy" = 0.5, "Light" = 1), guide = "none") +
-        ggplot2::theme(panel.grid.major = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
-              panel.grid.minor = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
-              legend.position = "inside", legend.position.inside = c(0.7, 0.7), strip.background = ggplot2::element_blank(), 
-              strip.text.y = ggplot2::element_text(size = 26))
-    }
-    message("Exporting QC Plots")
-    {
-      pdf("PrecursorQC_DIANN_Plot.pdf", width = 18, height = 20)
+      message("Filtering Precursors")
+      {
+        if(ProteotypicFiltering){PrecursorData <- PrecursorData[Proteotypic == 1]} else {PrecursorData <- PrecursorData}
+        PrecursorData <- PrecursorData[Q.Value <= 0.01 & PG.Q.Value <= 0.05 & Lib.Q.Value <= 0.01 & Lib.PG.Q.Value <= 0.01 & 
+                                         Quantity.Quality >= 0.2 & Channel.Q.Value <= 0.2]
+        PrecursorData <- PrecursorData[Channel != ""]
+        PrecursorData <- PrecursorData[!is.na(Precursor.Normalised) & Precursor.Normalised != 0]
+      }
+      message("Compiling & Exporting Data")
+      {
+        PrecursorData[, Precursor.Length := nchar(Stripped.Sequence)]
+        data.table::fwrite(PrecursorData, "Filtered_PrecursorData.csv.gz")
+        
+        LFQ_L <- Proteopedia::Calculate_LFQ(PrecursorData[Channel == "L"], "LFQ_L", SILAC = T)
+        Intensity_L <- PrecursorData[Label == "L",.(Intensity_L = sum(Precursor.Quantity)), .(ProteinGroup, Sample)]
+        Counts_L <- PrecursorData[Label == "L" , .(N_precursors_L = uniqueN(Precursor.Id), N_precursors_proteotypic_L = sum(Proteotypic)), .(ProteinGroup, Sample)]
+        
+        LFQ_H <- Proteopedia::Calculate_LFQ(PrecursorData[Channel == "H"], "LFQ_H", SILAC = T)
+        Intensity_H <- PrecursorData[Label == "H",.(Intensity_H = sum(Precursor.Quantity)), .(ProteinGroup, Sample)]
+        Counts_H <- PrecursorData[Label == "H" , .(N_precursors_H = uniqueN(Precursor.Id), N_precursors_proteotypic_H = sum(Proteotypic)), .(ProteinGroup, Sample)]
+        
+        
+        #LFQ_Ratio <- PrecursorData |> data.table::dcast(Run+ProteinGroup+Protein.Ids+ProteinDescription+Gene+Stripped.Sequence+
+        #                                     Proteotypic+Sample+Cell+Drug+Conc+Time+Replicate+Condition+Precursor.Id.nolabels ~Label, 
+        #                                   value.var = "Precursor.Translated") 
+        #LFQ_Ratio[, Precursor.Quantity := H/L]
+        #LFQ_Ratio |> data.table::setnames("Precursor.Id.nolabels", "Precursor.Id")
+        #LFQ_Ratio <- Proteopedia::Calculate_LFQ(LFQ_Ratio[!is.na(Precursor.Quantity)], "LFQ_Ratio", SILAC = T)
+        
+        Annotations <- unique(PrecursorData[, .(ProteinGroup, Run, Sample, Condition, Cell, Drug, Conc, Time, Replicate, ProteinDescription, Gene)])
+        ProteinData <- Reduce(Proteopedia::Merge_PrecursorData, list(LFQ_T, LFQ_H, LFQ_L, Intensity_T, Intensity_H, Intensity_L, Counts_T, Counts_H, Counts_L, Annotations))                               
+        ProteinData[, LFQ_Ratio := LFQ_H/LFQ_L]
+        data.table::fwrite(ProteinData, "SILAC_DIANN_Output.csv.gz")
+      }
+      message("Plotting Intensities")
+      {  
+        PrecursorData[, Label := gsub("L", "Light", Label)]
+        PrecursorData[, Label := gsub("H", "Heavy", Label)]
+        
+        IntensitiesData <- data.table::rbindlist(list(
+          PrecursorData[!is.na(Label), .(Sample, Condition, Replicate, Label, `log2 quantity` = log2(Precursor.Quantity), Type = "Precursor Quantity")],
+          ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(LFQ_L), Label = "Light", Type = "Max. Protein LFQ")],
+          ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(Intensity_L), Label = "Light", Type = "Protein Intensity")],
+          ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(LFQ_H), Label = "Heavy", Type = "Max. Protein LFQ")],
+          ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(Intensity_H), Label = "Heavy", Type = "Protein Intensity")],
+          ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(LFQ), Label = "Total", Type = "Max. Protein LFQ")],
+          ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(Intensity), Label = "Total", Type = "Protein Intensity")]
+        ), use.names = TRUE)
+        IntensitiesData[, Type := factor(Type, levels = c("Precursor Quantity", "Max. Protein LFQ", "Protein Intensity"))]
+        
+        IntensityPlot <- IntensitiesData |> ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = `log2 quantity`, colour = Condition, alpha = Label)) + 
+          ggplot2::geom_boxplot(outliers = FALSE)+
+          ggplot2::scale_colour_manual(values =Proteopedia::NiceColourPalette, guide = "none") + ggplot2::scale_alpha_manual(values = c("Heavy" = 0.5, "Light" = 1, "Total" = 1), guide = "none") + 
+          ggplot2::facet_grid(cols = ggplot2::vars(Type), rows = ggplot2::vars(Label), scales = "free_x") + 
+          ggplot2::ylab(expression("Log"[2]~"Value")) + ggplot2::coord_flip() + ggplot2::theme(axis.title.y = ggplot2::element_blank(), strip.background = ggplot2::element_blank(), strip.text.y = ggplot2::element_text(size = 26))
+      }
+      message("Plotting Precursor, Peptide & Protein Counts")
+      {
+        CountPlot <- data.table::melt(PrecursorData[!is.na(Label), lapply(.SD, uniqueN), .(Sample, Condition, Label), .SDcols = c("Precursor.Id", "Stripped.Sequence", "ProteinGroup")], 
+                                      id.vars = c("Sample","Condition", "Label"), value.name = "IDs") |> 
+          ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = IDs/1000, fill = Condition, alpha = Label, 
+                                       label = format(IDs, big.mark = ",", scientific = FALSE))) +
+          ggplot2::scale_fill_manual(values =Proteopedia::NiceColourPalette, guide = "none") + ggplot2::geom_bar(stat = "identity") + ggplot2::geom_text(size = 4, hjust = 1.1) +
+          ggplot2::facet_grid(ggplot2::vars(Label), ggplot2::vars(variable), scales = "free_x", 
+                              labeller = ggplot2::as_labeller(c(Precursor.Id = "Precursors", Stripped.Sequence = "Peptides", ProteinGroup = "Protein Groups", 
+                                                                Light = "Light", Heavy = "Heavy"))) + 
+          ggplot2::coord_flip() + ggplot2::ylab("No. IDs [x1,000]") + ggplot2::scale_alpha_manual(values = c("Heavy" = 0.5, "Light" = 1), guide = "none") +
+          ggplot2::theme(axis.title.y = ggplot2::element_blank(), strip.background = ggplot2::element_blank(), 
+                         strip.text.y = ggplot2::element_text(size = 26))
+      }
+      message("Calculating Data Completeness")
+      {
+        CompletenessData <- rbind(Proteopedia::Count_Proteins(ProteinData, "All"), Proteopedia::Count_Proteins(ProteinData[N_precursors >= 2], "≥ 2"),
+                                  Proteopedia::Count_Proteins(ProteinData[N_precursors_proteotypic >= 2], "≥ 2 Proteotypic"))
+        
+        NAsPlot <- CompletenessData |> ggplot2::ggplot(ggplot2::aes(x = N_samples, y = cumulative_protein_N/1000, colour = Precursors))+
+          ggplot2::geom_point() + ggplot2::geom_line() + ggplot2::scale_colour_manual(values = c("All" = "black", "≥ 2" = "darkgrey", "≥ 2 Proteotypic" = "orange3")) +
+          ggplot2::labs(x = "No. Samples", y = "No. Proteins [x1,000]") + ggplot2::scale_x_continuous( breaks = seq(1, 1000, 1)) +
+          ggplot2::scale_y_continuous( limits = c(0, max(CompletenessData$cumulative_protein_N)/1000))+
+          ggplot2::theme(panel.grid.major = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
+                         panel.grid.minor = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
+                         legend.position = "inside", legend.position.inside = c(0.25, 0.25))
+      }
+      message("Calculating Channel Skewing")
+      {
+        SkewData <- data.table::data.table(meta)
+        SkewData[, `:=`(PearsonsSkewRatio = 0, PearsonsSkew_L = 0, PearsonsSkew_H = 0, Median = 0, Mean = 0)]
+        for(RowIndex in 1:nrow(SkewData)){
+          SampleID <- SkewData$Sample[RowIndex]
+          SkewData$PearsonsSkewRatio[RowIndex] <- Proteopedia::Calculate_PearsonsSkew(ProteinData[Sample == SampleID, LFQ_Ratio])
+          SkewData$PearsonsSkew_L[RowIndex] <- Proteopedia::Calculate_PearsonsSkew(ProteinData[Sample == SampleID, LFQ_L])
+          SkewData$PearsonsSkew_H[RowIndex] <- Proteopedia::Calculate_PearsonsSkew(ProteinData[Sample == SampleID, LFQ_H])
+          SkewData$Median[RowIndex] <- median(ProteinData[Sample == SampleID, LFQ_Ratio], na.rm = T)
+          SkewData$Mean[RowIndex] <- mean(ProteinData[Sample == SampleID, LFQ_Ratio], na.rm = T)
+        }
+        
+        SkewPlot <- ProteinData |> ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = LFQ_Ratio, colour = Condition)) + 
+          ggplot2::geom_boxplot(outliers = FALSE) + ggplot2::scale_colour_manual(values =Proteopedia::NiceColourPalette, guide = "none") + 
+          ggplot2::ylab("Heavy:Light Protein LFQ Ratio") + ggplot2::coord_flip() + 
+          ggplot2::geom_text(data = SkewData, aes(y = Median*2, label = paste0("Pearson's Skew\n", round(PearsonsSkewRatio, 2))), size = 6) +
+          ggplot2::theme(axis.title.y = ggplot2::element_blank(), strip.background = ggplot2::element_blank(), strip.text.y = ggplot2::element_text(size = 26))
+      }
+      message("Plotting Missed Trypsinisation Sites")
+      {
+        TrypsinData <- PrecursorData |> data.table::copy()
+        TrypsinData[, MissedTrypsin := grepl("[RK][^P]", Stripped.Sequence)]
+        TrypsinData[, N_Trypsin := .N, by = .(Sample, MissedTrypsin, Label)]
+        TrypsinData[, N_Sample := .N, by = .(Sample, Label)]
+        TrypsinData <- TrypsinData[MissedTrypsin == T, .(Sample, Condition, Replicate, Label, N_Trypsin, N_Sample)] |> dplyr::distinct()
+        TrypsinData[, PercentTrypsin := (N_Trypsin/N_Sample)*100]
+        
+        MissedCleavagePlot <- TrypsinData |> ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = PercentTrypsin, fill = Condition, alpha = Label)) + 
+          ggplot2::geom_bar(stat = "identity", position = "stack") + ggplot2::scale_fill_manual(values =Proteopedia::NiceColourPalette, guide = "none") + 
+          ggplot2::labs(y = "Precursors with Missed Tryptic Sites (%)") + ggplot2::scale_alpha_manual(values = c("Heavy" = 0.5, "Light" = 1), guide = "none") +
+          ggplot2::coord_flip() +
+          ggplot2::theme(axis.title.y = ggplot2::element_blank(), strip.background = ggplot2::element_blank(), 
+                         strip.text.y = ggplot2::element_text(size = 26))
+      }
+      message("Calculating Precursor & Protein Variation")
+      {
+        PrecursorCVs <- PrecursorData[, .(CV = Proteopedia::Calculate_CV(Precursor.Translated), N = .N), .(Precursor.Id, Condition, Label)]
+        PrecursorCVs <- PrecursorCVs[N >= 3]  
+        PrecursorCVs[, rank := data.table::frank(CV), .(Condition, Label)] 
+        PrecursorCVs[, ID := "Precursors"]
+        
+        ProteinCVs <- ProteinData[, .(CV = Proteopedia::Calculate_CV(LFQ_L), N = .N), .(ProteinGroup, Condition)][, Label := "Light"] |> 
+          rbind(ProteinData[, .(CV = Proteopedia::Calculate_CV(LFQ_H), N = .N), .(ProteinGroup, Condition)][, Label := "Heavy"])
+        ProteinCVs <- ProteinCVs[N >= 3]
+        ProteinCVs <- ProteinCVs[, rank := data.table::frank(CV), .(Condition, Label)] 
+        ProteinCVs[, ID := "Protein Groups"]
+        
+        AllCVs <- PrecursorCVs[, Precursor.Id := NULL] |> rbind(ProteinCVs[, ProteinGroup := NULL])
+        
+        VariationPlot <- AllCVs |> ggplot2::ggplot(ggplot2::aes(x = rank/1000, y = CV, colour = gsub("_", " ", Condition), alpha = Label)) +
+          ggplot2::geom_line() + ggplot2::labs(x = "No. IDs [x1,000]", y = "Variation [%]") + ggplot2::scale_colour_manual(values =Proteopedia::NiceColourPalette, name = "Condition") +
+          ggplot2::coord_cartesian(ylim = c(0,50)) + ggplot2::facet_wrap(~ID, scales = "free") + 
+          ggplot2::scale_alpha_manual(values = c("Heavy" = 0.5, "Light" = 1), guide = "none") +
+          ggplot2::theme(panel.grid.major = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
+                         panel.grid.minor = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
+                         legend.position = "inside", legend.position.inside = c(0.7, 0.7), strip.background = ggplot2::element_blank(), 
+                         strip.text.y = ggplot2::element_text(size = 26))
+      }
+      message("Exporting QC Plots")
+      {
+        pdf("PrecursorQC_DIANN_Plot.pdf", width = 18, height = 20)
         print(IntensityPlot + CountPlot + free(NAsPlot) + free(IsotopeIncorporation) + SkewPlot + MissedCleavagePlot + free(VariationPlot) + 
                 plot_layout(design = "AAAAAA\nBBBBCC\nDEEEFF\nGGGGGG") + plot_annotation(tag_levels = "A"))
-      Proteopedia::Reset_Dev()
+        Proteopedia::Reset_Dev()
+      }
+    } else {
+      message("Importing DIA-NN Report File")
+      {
+        setwd(InputDirectory)
+        if(length(list.files(pattern = "report.tsv")[1]) > 0){
+          InputFile <- list.files(pattern = "report.tsv")[1]
+          PrecursorData <- data.table::fread(InputFile)[, .(Run, Protein.Group, Protein.Ids, First.Protein.Description, Genes, 
+                                                Stripped.Sequence, Precursor.Id, Proteotypic, Precursor.Quantity,    
+                                                Precursor.Translated, Channel.Q.Value,
+                                                Q.Value, Global.Q.Value, PG.Q.Value, Global.PG.Q.Value, Lib.Q.Value, 
+                                                Lib.PG.Q.Value)] |> data.table::setnames(c("Protein.Group", "Genes", "First.Protein.Description"), 
+                                                                              c("ProteinGroup", "Gene", "ProteinDescription"))
+        } else {return(message("ERROR: No InputFile Found"))}
+        
+        if(file.exists("Sample_Rename.csv") == TRUE){
+          PrecursorData <- PrecursorData |> data.table::merge.data.table(fread("Sample_Rename.csv") |> data.table::setnames("Renamed", "Sample"))
+        }
+      }
+      message("Defining Metadata")
+      {
+        PrecursorData[, Cell := gsub("(.*)_(.*)_(.*)_(.*)_R(.*)","\\1", Sample)]
+        PrecursorData[, Drug := gsub("(.*)_(.*)_(.*)_(.*)_R(.*)","\\2", Sample)]
+        PrecursorData[, Conc := gsub("(.*)_(.*)_(.*)_(.*)_R(.*)","\\3", Sample)]
+        PrecursorData[, Time := gsub("h", "", gsub("(.*)_(.*)_(.*)_(.*)_R(.*)","\\4", Sample))]
+        PrecursorData[, Replicate := gsub("(.*)_R(.*)", "\\2", Sample)]
+        PrecursorData[, Sample := gsub("0_", "", Sample)]
+        PrecursorData[, Condition := gsub("(.*)_R(.*)","\\1", Sample)]
+        
+        Sample_Order <- dplyr::arrange(unique(PrecursorData[, .(Sample, Condition, Replicate)]), !grepl(CtlGroup, Condition), Condition, Replicate)
+        PrecursorData[, Sample := factor(Sample, levels = Sample_Order$Sample)]
+      }
+      message("Filtering Precursors")
+      {
+        if(ProteotypicFiltering == T){PrecursorData <- PrecursorData[Proteotypic >= 1]} else {PrecursorData <- PrecursorData}
+        PrecursorData <- PrecursorData[Q.Value <= 0.01 & PG.Q.Value <= 0.05 & Lib.Q.Value <= 0.01 & Lib.PG.Q.Value <= 0.01 & Channel.Q.Value <= 0.01]
+        PrecursorData[Precursor.Quantity == 0, Precursor.Quantity   := NA]
+        PrecursorData[Precursor.Translated == 0, Precursor.Translated := NA]
+        PrecursorData <- PrecursorData[!is.na(Precursor.Quantity)]
+      }
+      message("Normalising Precursor Quantities")
+      {
+        PrecursorData[, Precursor.Quantity   := Precursor.Quantity/sum(Precursor.Quantity)*PrecursorData[, sum(Precursor.Quantity), Run][, median(V1)], by = Run]
+        PrecursorData[, Precursor.Translated := Precursor.Translated/sum(Precursor.Translated, na.rm = TRUE)*PrecursorData[, sum(Precursor.Quantity), Run][, median(V1)], Run]
+      }
+      message("Processing SILAC Labels")
+      {
+        if(PrecursorData[Precursor.Id %like% "SILAC-.-L" & Precursor.Id %like% "SILAC-.-H", .N] != 0){
+          message("ERROR: Multi-Label Precursors Detected")
+          MultiLabelDetection = T} else {MultiLabelDetection = F}
+        
+        PrecursorData[data.table::like(Precursor.Id, "SILAC-.-L"), Label := "L"]
+        PrecursorData[data.table::like(Precursor.Id, "SILAC-.-H"), Label := "H"]
+        PrecursorData[,Precursor.Id.nolabels := gsub("SILAC-.-.", "SILAC", Precursor.Id)]
+        
+        FullIsotopeRatio <- PrecursorData[!is.na(Precursor.Translated) & !is.na(Label), .(LabelIntensity = sum(Precursor.Translated)), by = list(Sample, Condition, Replicate, Label)] |> 
+          data.table::merge.data.table(PrecursorData[!is.na(Precursor.Translated) & !is.na(Label), .(TotalIntensity = sum(Precursor.Translated)), by = list(Sample, Condition, Replicate)])
+        FullIsotopeRatio[, Prop := LabelIntensity/TotalIntensity]
+        
+        IsotopeIncorporation <- FullIsotopeRatio |> ggplot2::ggplot(ggplot2::aes(x = gsub("_", " ", Sample), y = Prop, fill = Condition, alpha = Label)) +
+          ggplot2::scale_fill_manual(values =Proteopedia::NiceColourPalette, guide = "none") + ggplot2::geom_bar(stat = "identity", position = "stack") +
+          ggplot2::scale_alpha_manual(values = c("H" = 0.5, "L" = 1), guide = "none") + ggplot2::ylab("Label Incorporation Ratio") +
+          ggplot2::theme(axis.title.x = ggplot2::element_blank(), axis.text.x = ggplot2::element_text(angle = 90, hjust = 1, vjust = 0.5))
+        
+        IntensitiesRatioData <- PrecursorData |> data.table::dcast(Run+ProteinGroup+Protein.Ids+ProteinDescription+Gene+Stripped.Sequence+
+                                                                   Proteotypic+Sample+Cell+Drug+Conc+Time+Replicate+Condition+Precursor.Id.nolabels ~Label, 
+                                                                   value.var = "Precursor.Translated")
+        
+        IntensitiesRatioData <- IntensitiesRatioData[!is.na(H) & H > 0 & !is.na(L) & L > 0]
+        IntensitiesRatioData <- IntensitiesRatioData[,.(H = sum(H, na.rm = T), L = sum(L, na.rm = T), .N), .(ProteinGroup, ProteinDescription, Gene, Sample)]
+        IntensitiesRatioData[, Ratio := H/L]
+        data.table::fwrite(IntensitiesRatioData, "IntensitiesRatioData.csv")
+      }
+      message("Compiling & Exporting Data")
+      {
+        PrecursorData[, Precursor.Length := nchar(Stripped.Sequence)]
+        data.table::fwrite(PrecursorData, "Filtered_PrecursorData.csv.gz")
+        
+        LFQ_T <- Proteopedia::Calculate_LFQ(PrecursorData, "LFQ", SILAC = T)
+        Intensity_T <- PrecursorData[,.(Intensity = sum(Precursor.Quantity)), .(ProteinGroup, Sample)]
+        Counts_T <- PrecursorData[, .(N_precursors = uniqueN(Precursor.Id), N_precursors_proteotypic = sum(Proteotypic)), .(ProteinGroup, Sample)]
+        
+        LFQ_L <- Proteopedia::Calculate_LFQ(PrecursorData[Label == "L"], "LFQ_L", SILAC = T)
+        Intensity_L <- PrecursorData[Label == "L",.(Intensity_L = sum(Precursor.Quantity)), .(ProteinGroup, Sample)]
+        Counts_L <- PrecursorData[Label == "L" , .(N_precursors_L = uniqueN(Precursor.Id), N_precursors_proteotypic_L = sum(Proteotypic)), .(ProteinGroup, Sample)]
+        
+        LFQ_H <- Proteopedia::Calculate_LFQ(PrecursorData[Label == "H"], "LFQ_H", SILAC = T)
+        Intensity_H <- PrecursorData[Label == "H",.(Intensity_H = sum(Precursor.Quantity)), .(ProteinGroup, Sample)]
+        Counts_H <- PrecursorData[Label == "H" , .(N_precursors_H = uniqueN(Precursor.Id), N_precursors_proteotypic_H = sum(Proteotypic)), .(ProteinGroup, Sample)]
+  
+        
+        #LFQ_Ratio <- PrecursorData |> data.table::dcast(Run+ProteinGroup+Protein.Ids+ProteinDescription+Gene+Stripped.Sequence+
+        #                                     Proteotypic+Sample+Cell+Drug+Conc+Time+Replicate+Condition+Precursor.Id.nolabels ~Label, 
+        #                                   value.var = "Precursor.Translated") 
+        #LFQ_Ratio[, Precursor.Quantity := H/L]
+        #LFQ_Ratio |> data.table::setnames("Precursor.Id.nolabels", "Precursor.Id")
+        #LFQ_Ratio <- Proteopedia::Calculate_LFQ(LFQ_Ratio[!is.na(Precursor.Quantity)], "LFQ_Ratio", SILAC = T)
+        
+        Annotations <- unique(PrecursorData[, .(ProteinGroup, Run, Sample, Condition, Cell, Drug, Conc, Time, Replicate, ProteinDescription, Gene)])
+        ProteinData <- Reduce(Proteopedia::Merge_PrecursorData, list(LFQ_T, LFQ_H, LFQ_L, Intensity_T, Intensity_H, Intensity_L, Counts_T, Counts_H, Counts_L, Annotations))                               
+        ProteinData[, LFQ_Ratio := LFQ_H/LFQ_L]
+        data.table::fwrite(ProteinData, "SILAC_DIANN_Output.csv.gz")
+      }
+      message("Plotting Intensities")
+      {  
+        PrecursorData[, Label := gsub("L", "Light", Label)]
+        PrecursorData[, Label := gsub("H", "Heavy", Label)]
+        
+        IntensitiesData <- data.table::rbindlist(list(
+          PrecursorData[!is.na(Label), .(Sample, Condition, Replicate, Label, `log2 quantity` = log2(Precursor.Quantity), Type = "Precursor Quantity")],
+          ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(LFQ_L), Label = "Light", Type = "Max. Protein LFQ")],
+          ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(Intensity_L), Label = "Light", Type = "Protein Intensity")],
+          ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(LFQ_H), Label = "Heavy", Type = "Max. Protein LFQ")],
+          ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(Intensity_H), Label = "Heavy", Type = "Protein Intensity")],
+          ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(LFQ), Label = "Total", Type = "Max. Protein LFQ")],
+          ProteinData[, .(Sample, Condition, Replicate, `log2 quantity` = log2(Intensity), Label = "Total", Type = "Protein Intensity")]
+        ), use.names = TRUE)
+        IntensitiesData[, Type := factor(Type, levels = c("Precursor Quantity", "Max. Protein LFQ", "Protein Intensity"))]
+        
+        IntensityPlot <- IntensitiesData |> ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = `log2 quantity`, colour = Condition, alpha = Label)) + 
+          ggplot2::geom_boxplot(outliers = FALSE)+
+          ggplot2::scale_colour_manual(values =Proteopedia::NiceColourPalette, guide = "none") + ggplot2::scale_alpha_manual(values = c("Heavy" = 0.5, "Light" = 1, "Total" = 1), guide = "none") + 
+          ggplot2::facet_grid(cols = ggplot2::vars(Type), rows = ggplot2::vars(Label), scales = "free_x") + 
+          ggplot2::ylab(expression("Log"[2]~"Value")) + ggplot2::coord_flip() + ggplot2::theme(axis.title.y = ggplot2::element_blank(), strip.background = ggplot2::element_blank(), strip.text.y = ggplot2::element_text(size = 26))
+      }
+      message("Plotting Precursor, Peptide & Protein Counts")
+      {
+        CountPlot <- data.table::melt(PrecursorData[!is.na(Label), lapply(.SD, uniqueN), .(Sample, Condition, Label), .SDcols = c("Precursor.Id", "Stripped.Sequence", "ProteinGroup")], 
+                          id.vars = c("Sample","Condition", "Label"), value.name = "IDs") |> 
+          ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = IDs/1000, fill = Condition, alpha = Label, 
+                                       label = format(IDs, big.mark = ",", scientific = FALSE))) +
+          ggplot2::scale_fill_manual(values =Proteopedia::NiceColourPalette, guide = "none") + ggplot2::geom_bar(stat = "identity") + ggplot2::geom_text(size = 4, hjust = 1.1) +
+          ggplot2::facet_grid(ggplot2::vars(Label), ggplot2::vars(variable), scales = "free_x", 
+                     labeller = ggplot2::as_labeller(c(Precursor.Id = "Precursors", Stripped.Sequence = "Peptides", ProteinGroup = "Protein Groups", 
+                                              Light = "Light", Heavy = "Heavy"))) + 
+          ggplot2::coord_flip() + ggplot2::ylab("No. IDs [x1,000]") + ggplot2::scale_alpha_manual(values = c("Heavy" = 0.5, "Light" = 1), guide = "none") +
+          ggplot2::theme(axis.title.y = ggplot2::element_blank(), strip.background = ggplot2::element_blank(), 
+                                                          strip.text.y = ggplot2::element_text(size = 26))
+      }
+      message("Calculating Data Completeness")
+      {
+        CompletenessData <- rbind(Proteopedia::Count_Proteins(ProteinData, "All"), Proteopedia::Count_Proteins(ProteinData[N_precursors >= 2], "≥ 2"),
+                                              Proteopedia::Count_Proteins(ProteinData[N_precursors_proteotypic >= 2], "≥ 2 Proteotypic"))
+        
+        NAsPlot <- CompletenessData |> ggplot2::ggplot(ggplot2::aes(x = N_samples, y = cumulative_protein_N/1000, colour = Precursors))+
+          ggplot2::geom_point() + ggplot2::geom_line() + ggplot2::scale_colour_manual(values = c("All" = "black", "≥ 2" = "darkgrey", "≥ 2 Proteotypic" = "orange3")) +
+          ggplot2::labs(x = "No. Samples", y = "No. Proteins [x1,000]") + ggplot2::scale_x_continuous( breaks = seq(1, 1000, 1)) +
+          ggplot2::scale_y_continuous( limits = c(0, max(CompletenessData$cumulative_protein_N)/1000))+
+          ggplot2::theme(panel.grid.major = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
+                panel.grid.minor = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
+                legend.position = "inside", legend.position.inside = c(0.25, 0.25))
+      }
+      message("Calculating Channel Skewing")
+      {
+        SkewData <- data.table::data.table(meta)
+        SkewData[, `:=`(PearsonsSkewRatio = 0, PearsonsSkew_L = 0, PearsonsSkew_H = 0, Median = 0, Mean = 0)]
+        for(RowIndex in 1:nrow(SkewData)){
+          SampleID <- SkewData$Sample[RowIndex]
+          SkewData$PearsonsSkewRatio[RowIndex] <- Proteopedia::Calculate_PearsonsSkew(ProteinData[Sample == SampleID, LFQ_Ratio])
+          SkewData$PearsonsSkew_L[RowIndex] <- Proteopedia::Calculate_PearsonsSkew(ProteinData[Sample == SampleID, LFQ_L])
+          SkewData$PearsonsSkew_H[RowIndex] <- Proteopedia::Calculate_PearsonsSkew(ProteinData[Sample == SampleID, LFQ_H])
+          SkewData$Median[RowIndex] <- median(ProteinData[Sample == SampleID, LFQ_Ratio], na.rm = T)
+          SkewData$Mean[RowIndex] <- mean(ProteinData[Sample == SampleID, LFQ_Ratio], na.rm = T)
+        }
+    
+        SkewPlot <- ProteinData |> ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = LFQ_Ratio, colour = Condition)) + 
+          ggplot2::geom_boxplot(outliers = FALSE) + ggplot2::scale_colour_manual(values =Proteopedia::NiceColourPalette, guide = "none") + 
+          ggplot2::ylab("Heavy:Light Protein LFQ Ratio") + ggplot2::coord_flip() + 
+          ggplot2::geom_text(data = SkewData, aes(y = Median*2, label = paste0("Pearson's Skew\n", round(PearsonsSkewRatio, 2))), size = 6) +
+          ggplot2::theme(axis.title.y = ggplot2::element_blank(), strip.background = ggplot2::element_blank(), strip.text.y = ggplot2::element_text(size = 26))
+      }
+      message("Plotting Missed Trypsinisation Sites")
+      {
+        TrypsinData <- PrecursorData |> data.table::copy()
+        TrypsinData[, MissedTrypsin := grepl("[RK][^P]", Stripped.Sequence)]
+        TrypsinData[, N_Trypsin := .N, by = .(Sample, MissedTrypsin, Label)]
+        TrypsinData[, N_Sample := .N, by = .(Sample, Label)]
+        TrypsinData <- TrypsinData[MissedTrypsin == T, .(Sample, Condition, Replicate, Label, N_Trypsin, N_Sample)] |> dplyr::distinct()
+        TrypsinData[, PercentTrypsin := (N_Trypsin/N_Sample)*100]
+        
+        MissedCleavagePlot <- TrypsinData |> ggplot2::ggplot(ggplot2::aes(x = forcats::fct_rev(gsub("_", " ", Sample)), y = PercentTrypsin, fill = Condition, alpha = Label)) + 
+          ggplot2::geom_bar(stat = "identity", position = "stack") + ggplot2::scale_fill_manual(values =Proteopedia::NiceColourPalette, guide = "none") + 
+          ggplot2::labs(y = "Precursors with Missed Tryptic Sites (%)") + ggplot2::scale_alpha_manual(values = c("Heavy" = 0.5, "Light" = 1), guide = "none") +
+          ggplot2::coord_flip() +
+          ggplot2::theme(axis.title.y = ggplot2::element_blank(), strip.background = ggplot2::element_blank(), 
+                         strip.text.y = ggplot2::element_text(size = 26))
+      }
+      message("Calculating Precursor & Protein Variation")
+      {
+        PrecursorCVs <- PrecursorData[, .(CV = Proteopedia::Calculate_CV(Precursor.Translated), N = .N), .(Precursor.Id, Condition, Label)]
+        PrecursorCVs <- PrecursorCVs[N >= 3]  
+        PrecursorCVs[, rank := data.table::frank(CV), .(Condition, Label)] 
+        PrecursorCVs[, ID := "Precursors"]
+        
+        ProteinCVs <- ProteinData[, .(CV = Proteopedia::Calculate_CV(LFQ_L), N = .N), .(ProteinGroup, Condition)][, Label := "Light"] |> 
+                        rbind(ProteinData[, .(CV = Proteopedia::Calculate_CV(LFQ_H), N = .N), .(ProteinGroup, Condition)][, Label := "Heavy"])
+        ProteinCVs <- ProteinCVs[N >= 3]
+        ProteinCVs <- ProteinCVs[, rank := data.table::frank(CV), .(Condition, Label)] 
+        ProteinCVs[, ID := "Protein Groups"]
+        
+        AllCVs <- PrecursorCVs[, Precursor.Id := NULL] |> rbind(ProteinCVs[, ProteinGroup := NULL])
+        
+        VariationPlot <- AllCVs |> ggplot2::ggplot(ggplot2::aes(x = rank/1000, y = CV, colour = gsub("_", " ", Condition), alpha = Label)) +
+          ggplot2::geom_line() + ggplot2::labs(x = "No. IDs [x1,000]", y = "Variation [%]") + ggplot2::scale_colour_manual(values =Proteopedia::NiceColourPalette, name = "Condition") +
+          ggplot2::coord_cartesian(ylim = c(0,50)) + ggplot2::facet_wrap(~ID, scales = "free") + 
+          ggplot2::scale_alpha_manual(values = c("Heavy" = 0.5, "Light" = 1), guide = "none") +
+          ggplot2::theme(panel.grid.major = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
+                panel.grid.minor = ggplot2::element_line(linewidth = 0.25, colour = "grey70", linetype = "dotted"),
+                legend.position = "inside", legend.position.inside = c(0.7, 0.7), strip.background = ggplot2::element_blank(), 
+                strip.text.y = ggplot2::element_text(size = 26))
+      }
+      message("Exporting QC Plots")
+      {
+        pdf("PrecursorQC_DIANN_Plot.pdf", width = 18, height = 20)
+          print(IntensityPlot + CountPlot + free(NAsPlot) + free(IsotopeIncorporation) + SkewPlot + MissedCleavagePlot + free(VariationPlot) + 
+                  plot_layout(design = "AAAAAA\nBBBBCC\nDEEEFF\nGGGGGG") + plot_annotation(tag_levels = "A"))
+        Proteopedia::Reset_Dev()
+      }
     }
     Proteopedia::End_Timer(Start = start.time)
 }

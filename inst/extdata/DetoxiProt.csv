@@ -1,0 +1,482 @@
+Category_ID,ProteinGroup,Phase,Category
+ADH,P00325,1,Alcohol Dehydrogenase
+ADH,P00326,1,Alcohol Dehydrogenase
+ADH,P07327,1,Alcohol Dehydrogenase
+ADH,P08319,1,Alcohol Dehydrogenase
+ADH,P11766,1,Alcohol Dehydrogenase
+ADH,P14550,1,Alcohol Dehydrogenase
+ADH,P16152,1,Alcohol Dehydrogenase
+ADH,P28332,1,Alcohol Dehydrogenase
+ADH,P40394,1,Alcohol Dehydrogenase
+ADH,Q8IWW8,1,Alcohol Dehydrogenase
+ADH,Q8N8N7,1,Alcohol Dehydrogenase
+ADH,Q9BTZ2,1,Alcohol Dehydrogenase
+ADH,Q9HBH5,1,Alcohol Dehydrogenase
+ADH,Q8N4Q0,1,Alcohol Dehydrogenase
+AKR,C9JRZ8,1,Aldo-Keto Reductase
+AKR,O60218,1,Aldo-Keto Reductase
+AKR,O95154,1,Aldo-Keto Reductase
+AKR,P14550,1,Aldo-Keto Reductase
+AKR,P15121,1,Aldo-Keto Reductase
+AKR,P17516,1,Aldo-Keto Reductase
+AKR,P42330,1,Aldo-Keto Reductase
+AKR,P51857,1,Aldo-Keto Reductase
+AKR,P52895,1,Aldo-Keto Reductase
+AKR,Q04828,1,Aldo-Keto Reductase
+AKR,Q96JD6,1,Aldo-Keto Reductase
+AKR,Q5T2L2,1,Aldo-Keto Reductase
+ALDH,O75891,1,Aldehyde Dehydrogenase
+ALDH,O94788,1,Aldehyde Dehydrogenase
+ALDH,P00352,1,Aldehyde Dehydrogenase
+ALDH,P05091,1,Aldehyde Dehydrogenase
+ALDH,P14550,1,Aldehyde Dehydrogenase
+ALDH,P30038,1,Aldehyde Dehydrogenase
+ALDH,P30837,1,Aldehyde Dehydrogenase
+ALDH,P30838,1,Aldehyde Dehydrogenase
+ALDH,P43353,1,Aldehyde Dehydrogenase
+ALDH,P47895,1,Aldehyde Dehydrogenase
+ALDH,P48448,1,Aldehyde Dehydrogenase
+ALDH,P49189,1,Aldehyde Dehydrogenase
+ALDH,P49419,1,Aldehyde Dehydrogenase
+ALDH,P51648,1,Aldehyde Dehydrogenase
+ALDH,P51649,1,Aldehyde Dehydrogenase
+ALDH,P54886,1,Aldehyde Dehydrogenase
+ALDH,Q02252,1,Aldehyde Dehydrogenase
+ALDH,Q3SY69,1,Aldehyde Dehydrogenase
+ALDH,Q9H2A2,1,Aldehyde Dehydrogenase
+ALDH,Q8IZ83,1,Aldehyde Dehydrogenase
+AOC,O60341,1,Amine Oxidase
+AOC,O75106,1,Amine Oxidase
+AOC,P19801,1,Amine Oxidase
+AOC,P21397,1,Amine Oxidase
+AOC,P27338,1,Amine Oxidase
+AOC,Q16853,1,Amine Oxidase
+AOC,Q8NB78,1,Amine Oxidase
+AOX,Q06278,1,Aldehyde Oxidase
+CAT,P04040,Anti-Oxidant,Catalase
+CAT,P17643,Anti-Oxidant,Catalase
+CBR,O75828,1,Carbonyl Reductase
+CBR,P16152,1,Carbonyl Reductase
+CBR,Q8N4T8,1,Carbonyl Reductase
+CBR,Q9BTZ2,1,Carbonyl Reductase
+CPR,P16435,1,CYP450 Reductase
+CYP,A0A087X1C5,1,CYP450
+CYP,O15528,1,CYP450
+CYP,O43174,1,CYP450
+CYP,O75881,1,CYP450
+CYP,P04798,1,CYP450
+CYP,P05093,1,CYP450
+CYP,P05108,1,CYP450
+CYP,P05177,1,CYP450
+CYP,P05181,1,CYP450
+CYP,P08684,1,CYP450
+CYP,P08686,1,CYP450
+CYP,P10632,1,CYP450
+CYP,P10635,1,CYP450
+CYP,P11509,1,CYP450
+CYP,P11511,1,CYP450
+CYP,P11712,1,CYP450
+CYP,P13584,1,CYP450
+CYP,P15538,1,CYP450
+CYP,P16435,1,CYP450
+CYP,P19099,1,CYP450
+CYP,P20813,1,CYP450
+CYP,P20815,1,CYP450
+CYP,P20853,1,CYP450
+CYP,P22680,1,CYP450
+CYP,P24462,1,CYP450
+CYP,P24557,1,CYP450
+CYP,P24903,1,CYP450
+CYP,P33260,1,CYP450
+CYP,P33261,1,CYP450
+CYP,P51589,1,CYP450
+CYP,P78329,1,CYP450
+CYP,P98187,1,CYP450
+CYP,Q02318,1,CYP450
+CYP,Q02928,1,CYP450
+CYP,Q07973,1,CYP450
+CYP,Q08477,1,CYP450
+CYP,Q16678,1,CYP450
+CYP,Q16696,1,CYP450
+CYP,Q16850,1,CYP450
+CYP,Q4G0S4,1,CYP450
+CYP,Q5TCH4,1,CYP450
+CYP,Q6NT55,1,CYP450
+CYP,Q6V0L0,1,CYP450
+CYP,Q6VVX0,1,CYP450
+CYP,Q6ZWL3,1,CYP450
+CYP,Q7Z449,1,CYP450
+CYP,Q86W10,1,CYP450
+CYP,Q8TAV3,1,CYP450
+CYP,Q96SQ9,1,CYP450
+CYP,Q9HB55,1,CYP450
+CYP,Q9HBI6,1,CYP450
+CYP,Q9HCS2,1,CYP450
+CYP,Q9NR63,1,CYP450
+CYP,Q9NYL5,1,CYP450
+CYP,Q9UNU6,1,CYP450
+CYP,Q9Y6A2,1,CYP450
+CYP,Q8N118,1,CYP450
+CYP,Q6UW02,1,CYP450
+CYP,Q8N1L4,1,CYP450
+CYP,Q6ZSU1,1,CYP450
+CYP,Q9H0H9,1,CYP450
+EPHX,P07099,2,Epoxide Hydrolase
+EPHX,P34913,2,Epoxide Hydrolase
+EPHX,Q15125,2,Epoxide Hydrolase
+EPHX,Q9H6B9,2,Epoxide Hydrolase
+EPHX,Q9UBM7,2,Epoxide Hydrolase
+EPHX,Q8IUS5,2,Epoxide Hydrolase
+FMO,P31512,1,Flavin-Containing Monooxygenase
+FMO,P31513,1,Flavin-Containing Monooxygenase
+FMO,P49326,1,Flavin-Containing Monooxygenase
+FMO,Q01740,1,Flavin-Containing Monooxygenase
+FMO,Q99518,1,Flavin-Containing Monooxygenase
+FMO,O60774,1,Flavin-Containing Monooxygenase
+FMO,Q96A73,1,Flavin-Containing Monooxygenase
+GPX,O14684,Anti-Oxidant,Glutathione Peroxidase
+GPX,O14880,Anti-Oxidant,Glutathione Peroxidase
+GPX,P00450,Anti-Oxidant,Glutathione Peroxidase
+GPX,P07203,Anti-Oxidant,Glutathione Peroxidase
+GPX,P08263,Anti-Oxidant,Glutathione Peroxidase
+GPX,P18283,Anti-Oxidant,Glutathione Peroxidase
+GPX,P22352,Anti-Oxidant,Glutathione Peroxidase
+GPX,P30041,Anti-Oxidant,Glutathione Peroxidase
+GPX,P36969,Anti-Oxidant,Glutathione Peroxidase
+GPX,Q8TED1,Anti-Oxidant,Glutathione Peroxidase
+GPX,Q96SL4,Anti-Oxidant,Glutathione Peroxidase
+GPX,Q99735,Anti-Oxidant,Glutathione Peroxidase
+GPX,O75715,Anti-Oxidant,Glutathione Peroxidase
+GPX,P59796,Anti-Oxidant,Glutathione Peroxidase
+GST,O14684,2,Glutathione S-transferase
+GST,O14880,2,Glutathione S-transferase
+GST,O15217,2,Glutathione S-transferase
+GST,O43708,2,Glutathione S-transferase
+GST,O43813,2,Glutathione S-transferase
+GST,O60760,2,Glutathione S-transferase
+GST,P08263,2,Glutathione S-transferase
+GST,P09210,2,Glutathione S-transferase
+GST,P09211,2,Glutathione S-transferase
+GST,P09488,2,Glutathione S-transferase
+GST,P0CG30,2,Glutathione S-transferase
+GST,P10620,2,Glutathione S-transferase
+GST,P21266,2,Glutathione S-transferase
+GST,P28161,2,Glutathione S-transferase
+GST,P30711,2,Glutathione S-transferase
+GST,P46439,2,Glutathione S-transferase
+GST,P78417,2,Glutathione S-transferase
+GST,Q03013,2,Glutathione S-transferase
+GST,Q16772,2,Glutathione S-transferase
+GST,Q16873,2,Glutathione S-transferase
+GST,Q99735,2,Glutathione S-transferase
+GST,Q9H4Y5,2,Glutathione S-transferase
+GST,Q9Y2Q3,2,Glutathione S-transferase
+GST,P0CG29,2,Glutathione S-transferase
+GST,Q7RTV2,2,Glutathione S-transferase
+GST,A0A1W2PR19,2,Glutathione S-transferase
+GST,Q8NEC7,2,Glutathione S-transferase
+HSD,O14756,1,Hydroxysteroid Dehydrogenase
+HSD,P14060,1,Hydroxysteroid Dehydrogenase
+HSD,P14061,1,Hydroxysteroid Dehydrogenase
+HSD,P16152,1,Hydroxysteroid Dehydrogenase
+HSD,P17516,1,Hydroxysteroid Dehydrogenase
+HSD,P26439,1,Hydroxysteroid Dehydrogenase
+HSD,P28845,1,Hydroxysteroid Dehydrogenase
+HSD,P37058,1,Hydroxysteroid Dehydrogenase
+HSD,P37059,1,Hydroxysteroid Dehydrogenase
+HSD,P42330,1,Hydroxysteroid Dehydrogenase
+HSD,P51659,1,Hydroxysteroid Dehydrogenase
+HSD,P52895,1,Hydroxysteroid Dehydrogenase
+HSD,P56937,1,Hydroxysteroid Dehydrogenase
+HSD,P80365,1,Hydroxysteroid Dehydrogenase
+HSD,Q04828,1,Hydroxysteroid Dehydrogenase
+HSD,Q3SXM5,1,Hydroxysteroid Dehydrogenase
+HSD,Q53GQ0,1,Hydroxysteroid Dehydrogenase
+HSD,Q6UWP2,1,Hydroxysteroid Dehydrogenase
+HSD,Q6YN16,1,Hydroxysteroid Dehydrogenase
+HSD,Q7Z5J1,1,Hydroxysteroid Dehydrogenase
+HSD,Q7Z5P4,1,Hydroxysteroid Dehydrogenase
+HSD,Q8NBQ5,1,Hydroxysteroid Dehydrogenase
+HSD,Q92506,1,Hydroxysteroid Dehydrogenase
+HSD,Q99714,1,Hydroxysteroid Dehydrogenase
+HSD,Q9BPW9,1,Hydroxysteroid Dehydrogenase
+HSD,Q9BPX1,1,Hydroxysteroid Dehydrogenase
+HSD,Q9H2F3,1,Hydroxysteroid Dehydrogenase
+MT,A6NHQ2,2,Methyltransferase
+MT,A6NJ78,2,Methyltransferase
+MT,A8MUP2,2,Methyltransferase
+MT,O14686,2,Methyltransferase
+MT,O14717,2,Methyltransferase
+MT,O14744,2,Methyltransferase
+MT,O15047,2,Methyltransferase
+MT,O43148,2,Methyltransferase
+MT,O43463,2,Methyltransferase
+MT,O43709,2,Methyltransferase
+MT,O60294,2,Methyltransferase
+MT,O60678,2,Methyltransferase
+MT,O60725,2,Methyltransferase
+MT,O95050,2,Methyltransferase
+MT,O95568,2,Methyltransferase
+MT,O95671,2,Methyltransferase
+MT,O96028,2,Methyltransferase
+MT,P0DPD7,2,Methyltransferase
+MT,P0DPD8,2,Methyltransferase
+MT,P11086,2,Methyltransferase
+MT,P16455,2,Methyltransferase
+MT,P21964,2,Methyltransferase
+MT,P22061,2,Methyltransferase
+MT,P22087,2,Methyltransferase
+MT,P26358,2,Methyltransferase
+MT,P40261,2,Methyltransferase
+MT,P46087,2,Methyltransferase
+MT,P46597,2,Methyltransferase
+MT,P50135,2,Methyltransferase
+MT,P51580,2,Methyltransferase
+MT,P55345,2,Methyltransferase
+MT,P57081,2,Methyltransferase
+MT,Q03112,2,Methyltransferase
+MT,Q03164,2,Methyltransferase
+MT,Q08J23,2,Methyltransferase
+MT,Q13029,2,Methyltransferase
+MT,Q13395,2,Methyltransferase
+MT,Q14353,2,Methyltransferase
+MT,Q14749,2,Methyltransferase
+MT,Q15047,2,Methyltransferase
+MT,Q15910,2,Methyltransferase
+MT,Q1RMZ1,2,Methyltransferase
+MT,Q32P41,2,Methyltransferase
+MT,Q4FZB7,2,Methyltransferase
+MT,Q53H47,2,Methyltransferase
+MT,Q5HYK3,2,Methyltransferase
+MT,Q5JPI9,2,Methyltransferase
+MT,Q5T280,2,Methyltransferase
+MT,Q5T8I9,2,Methyltransferase
+MT,Q5TEU4,2,Methyltransferase
+MT,Q5VVY1,2,Methyltransferase
+MT,Q5VZV1,2,Methyltransferase
+MT,Q63ZY6,2,Methyltransferase
+MT,Q6IN84,2,Methyltransferase
+MT,Q6P1Q9,2,Methyltransferase
+MT,Q6P2P2,2,Methyltransferase
+MT,Q6P4H8,2,Methyltransferase
+MT,Q6PF06,2,Methyltransferase
+MT,Q6UX53,2,Methyltransferase
+MT,Q6YHU6,2,Methyltransferase
+MT,Q7L0Y3,2,Methyltransferase
+MT,Q7L592,2,Methyltransferase
+MT,Q7Z2T5,2,Methyltransferase
+MT,Q7Z4G4,2,Methyltransferase
+MT,Q7Z5W3,2,Methyltransferase
+MT,Q7Z624,2,Methyltransferase
+MT,Q86TU7,2,Methyltransferase
+MT,Q86U44,2,Methyltransferase
+MT,Q86W50,2,Methyltransferase
+MT,Q86X55,2,Methyltransferase
+MT,Q86XA0,2,Methyltransferase
+MT,Q86XK2,2,Methyltransferase
+MT,Q86Y97,2,Methyltransferase
+MT,Q8IXQ9,2,Methyltransferase
+MT,Q8IY81,2,Methyltransferase
+MT,Q8IYR2,2,Methyltransferase
+MT,Q8IYT2,2,Methyltransferase
+MT,Q8IZ69,2,Methyltransferase
+MT,Q8IZD2,2,Methyltransferase
+MT,Q8N1G2,2,Methyltransferase
+MT,Q8N3J2,2,Methyltransferase
+MT,Q8N4J0,2,Methyltransferase
+MT,Q8N6F8,2,Methyltransferase
+MT,Q8N6R0,2,Methyltransferase
+MT,Q8NB12,2,Methyltransferase
+MT,Q8NEZ4,2,Methyltransferase
+MT,Q8NHM5,2,Methyltransferase
+MT,Q8TBK2,2,Methyltransferase
+MT,Q8TBZ6,2,Methyltransferase
+MT,Q8TCB7,2,Methyltransferase
+MT,Q8TEA1,2,Methyltransferase
+MT,Q8TEK3,2,Methyltransferase
+MT,Q8WTS6,2,Methyltransferase
+MT,Q8WXB1,2,Methyltransferase
+MT,Q8WZ04,2,Methyltransferase
+MT,Q92800,2,Methyltransferase
+MT,Q92979,2,Methyltransferase
+MT,Q93088,2,Methyltransferase
+MT,Q96AZ1,2,Methyltransferase
+MT,Q96BT7,2,Methyltransferase
+MT,Q96CB9,2,Methyltransferase
+MT,Q96FX7,2,Methyltransferase
+MT,Q96G04,2,Methyltransferase
+MT,Q96GJ1,2,Methyltransferase
+MT,Q96IZ6,2,Methyltransferase
+MT,Q96KQ7,2,Methyltransferase
+MT,Q96L73,2,Methyltransferase
+MT,Q96LA8,2,Methyltransferase
+MT,Q96MG8,2,Methyltransferase
+MT,Q96P11,2,Methyltransferase
+MT,Q96RS0,2,Methyltransferase
+MT,Q96T68,2,Methyltransferase
+MT,Q99707,2,Methyltransferase
+MT,Q99873,2,Methyltransferase
+MT,Q9BQD7,2,Methyltransferase
+MT,Q9BTF0,2,Methyltransferase
+MT,Q9BTL3,2,Methyltransferase
+MT,Q9BUU2,2,Methyltransferase
+MT,Q9BV44,2,Methyltransferase
+MT,Q9BV86,2,Methyltransferase
+MT,Q9BVS5,2,Methyltransferase
+MT,Q9BYW2,2,Methyltransferase
+MT,Q9BZ95,2,Methyltransferase
+MT,Q9C0A6,2,Methyltransferase
+MT,Q9H1A3,2,Methyltransferase
+MT,Q9H2M3,2,Methyltransferase
+MT,Q9H2P9,2,Methyltransferase
+MT,Q9H4Z3,2,Methyltransferase
+MT,Q9H5I1,2,Methyltransferase
+MT,Q9H5U6,2,Methyltransferase
+MT,Q9H649,2,Methyltransferase
+MT,Q9H7B4,2,Methyltransferase
+MT,Q9H7H0,2,Methyltransferase
+MT,Q9H825,2,Methyltransferase
+MT,Q9H867,2,Methyltransferase
+MT,Q9H8H3,2,Methyltransferase
+MT,Q9H993,2,Methyltransferase
+MT,Q9H9B1,2,Methyltransferase
+MT,Q9HAZ2,2,Methyltransferase
+MT,Q9HBK9,2,Methyltransferase
+MT,Q9HC36,2,Methyltransferase
+MT,Q9HCE5,2,Methyltransferase
+MT,Q9NNW5,2,Methyltransferase
+MT,Q9NPF5,2,Methyltransferase
+MT,Q9NQR1,2,Methyltransferase
+MT,Q9NQV7,2,Methyltransferase
+MT,Q9NQW5,2,Methyltransferase
+MT,Q9NQX0,2,Methyltransferase
+MT,Q9NR22,2,Methyltransferase
+MT,Q9NR48,2,Methyltransferase
+MT,Q9NRG4,2,Methyltransferase
+MT,Q9NRN9,2,Methyltransferase
+MT,Q9NV79,2,Methyltransferase
+MT,Q9NVM4,2,Methyltransferase
+MT,Q9NXH9,2,Methyltransferase
+MT,Q9NZJ6,2,Methyltransferase
+MT,Q9P272,2,Methyltransferase
+MT,Q9UBC3,2,Methyltransferase
+MT,Q9UBL3,2,Methyltransferase
+MT,Q9UBM1,2,Methyltransferase
+MT,Q9UBP6,2,Methyltransferase
+MT,Q9UET6,2,Methyltransferase
+MT,Q9UI30,2,Methyltransferase
+MT,Q9UI43,2,Methyltransferase
+MT,Q9UIC8,2,Methyltransferase
+MT,Q9UJA5,2,Methyltransferase
+MT,Q9UJW3,2,Methyltransferase
+MT,Q9UMN6,2,Methyltransferase
+MT,Q9UPS6,2,Methyltransferase
+MT,Q9Y5N5,2,Methyltransferase
+MT,Q9Y6K1,2,Methyltransferase
+MT,Q6IPR3,2,Methyltransferase
+MT,Q86VU5,2,Methyltransferase
+MT,Q8IYL2,2,Methyltransferase
+MT,Q8WVE0,2,Methyltransferase
+MT,Q9BTV6,2,Methyltransferase
+MT,Q9BU70,2,Methyltransferase
+MT,Q9Y5R4,2,Methyltransferase
+MT,P0C5J1,2,Methyltransferase
+MT,Q5JXM2,2,Methyltransferase
+MT,Q8NE18,2,Methyltransferase
+MT,Q96FB5,2,Methyltransferase
+MT,Q96S19,2,Methyltransferase
+MT,A0A3B3IU46,2,Methyltransferase
+MT,A6NDL7,2,Methyltransferase
+MT,P0C7V9,2,Methyltransferase
+MT,Q8N6Q8,2,Methyltransferase
+MT,Q8N7N1,2,Methyltransferase
+NAT,O60502,2,N-Acetyltransferase
+NAT,P11245,2,N-Acetyltransferase
+NAT,P18440,2,N-Acetyltransferase
+NAT,P21673,2,N-Acetyltransferase
+NAT,P41227,2,N-Acetyltransferase
+NAT,P61599,2,N-Acetyltransferase
+NAT,Q147X3,2,N-Acetyltransferase
+NAT,Q14CX7,2,N-Acetyltransferase
+NAT,Q16613,2,N-Acetyltransferase
+NAT,Q56NI9,2,N-Acetyltransferase
+NAT,Q5FWF5,2,N-Acetyltransferase
+NAT,Q5SQI0,2,N-Acetyltransferase
+NAT,Q5VZE5,2,N-Acetyltransferase
+NAT,Q68CP4,2,N-Acetyltransferase
+NAT,Q6N069,2,N-Acetyltransferase
+NAT,Q86UY6,2,N-Acetyltransferase
+NAT,Q8N159,2,N-Acetyltransferase
+NAT,Q8N9F0,2,N-Acetyltransferase
+NAT,Q93015,2,N-Acetyltransferase
+NAT,Q96EK6,2,N-Acetyltransferase
+NAT,Q96F10,2,N-Acetyltransferase
+NAT,Q96PB1,2,N-Acetyltransferase
+NAT,Q9BRA0,2,N-Acetyltransferase
+NAT,Q9BSU3,2,N-Acetyltransferase
+NAT,Q9BXJ9,2,N-Acetyltransferase
+NAT,Q9GZZ1,2,N-Acetyltransferase
+NAT,Q9H0A0,2,N-Acetyltransferase
+NAT,Q9H7X0,2,N-Acetyltransferase
+NAT,Q9UHE5,2,N-Acetyltransferase
+NAT,Q9UHF3,2,N-Acetyltransferase
+NAT,Q8WUY8,2,N-Acetyltransferase
+NAT,Q86VE3,2,N-Acetyltransferase
+NAT,Q8N6N6,2,N-Acetyltransferase
+NAT,Q8N8M0,2,N-Acetyltransferase
+NAT,Q9BTE0,2,N-Acetyltransferase
+NQO,O14521,2,NAD[P]H:Quinone-Oxidoreductase
+NQO,O95825,2,NAD[P]H:Quinone-Oxidoreductase
+NQO,P15559,2,NAD[P]H:Quinone-Oxidoreductase
+NQO,P16083,2,NAD[P]H:Quinone-Oxidoreductase
+NQO,Q08257,2,NAD[P]H:Quinone-Oxidoreductase
+NQO,Q53FA7,2,NAD[P]H:Quinone-Oxidoreductase
+NQO,Q99536,2,NAD[P]H:Quinone-Oxidoreductase
+NQO,Q99643,2,NAD[P]H:Quinone-Oxidoreductase
+NQO,Q9UHQ9,2,NAD[P]H:Quinone-Oxidoreductase
+NQO,Q9Y6N5,2,NAD[P]H:Quinone-Oxidoreductase
+NQO,Q9HCJ6,2,NAD[P]H:Quinone-Oxidoreductase
+POD,A1KZ92,Anti-Oxidant,Peroxidase
+POD,O15247,Anti-Oxidant,Peroxidase
+POD,P07202,Anti-Oxidant,Peroxidase
+POD,P11678,Anti-Oxidant,Peroxidase
+POD,P22079,Anti-Oxidant,Peroxidase
+POD,P30044,Anti-Oxidant,Peroxidase
+POD,P32119,Anti-Oxidant,Peroxidase
+POD,Q06830,Anti-Oxidant,Peroxidase
+POD,Q13162,Anti-Oxidant,Peroxidase
+POD,Q16881,Anti-Oxidant,Peroxidase
+POD,Q92626,Anti-Oxidant,Peroxidase
+POD,Q9NRD8,Anti-Oxidant,Peroxidase
+SOD,O14618,Anti-Oxidant,Superoxide Dismutase
+SOD,P00441,Anti-Oxidant,Superoxide Dismutase
+SOD,P04179,Anti-Oxidant,Superoxide Dismutase
+SOD,P08294,Anti-Oxidant,Superoxide Dismutase
+SOD,Q8WWM9,Anti-Oxidant,Superoxide Dismutase
+SULT,O00204,2,Cytosolic Sulphotransferase
+SULT,O43704,2,Cytosolic Sulphotransferase
+UGT,O60656,2,UDP-Glucuronosyl-transferase
+UGT,O75795,2,UDP-Glucuronosyl-transferase
+UGT,O94766,2,UDP-Glucuronosyl-transferase
+UGT,P06133,2,UDP-Glucuronosyl-transferase
+UGT,P0DTE4,2,UDP-Glucuronosyl-transferase
+UGT,P0DTE5,2,UDP-Glucuronosyl-transferase
+UGT,P16662,2,UDP-Glucuronosyl-transferase
+UGT,P19224,2,UDP-Glucuronosyl-transferase
+UGT,P22309,2,UDP-Glucuronosyl-transferase
+UGT,P22310,2,UDP-Glucuronosyl-transferase
+UGT,P35503,2,UDP-Glucuronosyl-transferase
+UGT,P35504,2,UDP-Glucuronosyl-transferase
+UGT,P54855,2,UDP-Glucuronosyl-transferase
+UGT,Q9BY64,2,UDP-Glucuronosyl-transferase
+UGT,Q9HAW7,2,UDP-Glucuronosyl-transferase
+UGT,Q9HAW8,2,UDP-Glucuronosyl-transferase
+UGT,Q9HAW9,2,UDP-Glucuronosyl-transferase
+UGT,Q9NPZ5,2,UDP-Glucuronosyl-transferase
+UGT,Q9P2W7,2,UDP-Glucuronosyl-transferase
+UGT,O75310,2,UDP-Glucuronosyl-transferase
+UGT,P36537,2,UDP-Glucuronosyl-transferase
+UGT,Q3SY77,2,UDP-Glucuronosyl-transferase
+UGT,Q6NUS8,2,UDP-Glucuronosyl-transferase
+UGT,Q6UWM9,2,UDP-Glucuronosyl-transferase
+XOR,P47989,1,Xanthine Oxidoreductase
