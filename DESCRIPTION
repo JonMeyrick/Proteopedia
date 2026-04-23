@@ -1,0 +1,13 @@
+Package: Proteopedia
+Title: What the Package Does (One Line, Title Case)
+Version: 0.0.0.9000
+Authors@R: 
+    person("Jon", "Meyrick", , "jonathanj.meyrick@gmail.com", role = c("aut", "cre"))
+Description: Package for the standardised analysis of human proteomic data, using post-DIA-NN processing, linear modelling, and curated datasets.
+License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
+    license
+Imports: BiocGenerics, DOSE, DescTools, Peptides, RColorBrewer, ReactomePA, clusterProfiler, data.table, dplyr, enrichplot, forcats, ggplot2,
+            ggrepel, ggside, ggupset, highcharter, htmlwidgets, imputeLCMD, limma, mzR, org.Hs.eg.db, patchwork, stringr, tidyr
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
