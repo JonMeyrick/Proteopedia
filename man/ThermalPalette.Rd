@@ -3,8 +3,7 @@
 \docType{data}
 \name{ThermalPalette}
 \alias{ThermalPalette}
-\title{ThermalPalette is a string of hexademical colour codes which allow for plotting of 46 continuous
-variable groups with the colours White, Yellow, Orange, Red, Black}
+\title{ThermalPalette}
 \format{
 A character string of 46 length.
 }
@@ -16,6 +15,9 @@ ThermalPalette
 }
 \description{
 ThermalPalette is a string of hexademical colour codes which allow for plotting of 46 continuous
-variable groups with the colours White, Yellow, Orange, Red, Black
+variable groups with the colours white, yellow, orange, red, and black
+}
+\examples{
+data(ThermalPalette)
 }
 \keyword{datasets}

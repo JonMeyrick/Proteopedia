@@ -3,10 +3,9 @@
 \docType{data}
 \name{NiceColourPalette}
 \alias{NiceColourPalette}
-\title{NiceColourPalette is a string of hexademical colour codes which allow for plotting of 24 distinct
-variable groups using clear, distinct colours}
+\title{NiceColourPalette}
 \format{
-A character string of 24 length.
+A character string of 24 length,
 }
 \source{
 Created by Jon Meyrick
@@ -17,5 +16,8 @@ NiceColourPalette
 \description{
 NiceColourPalette is a string of hexademical colour codes which allow for plotting of 24 distinct
 variable groups using clear, distinct colours
+}
+\examples{
+data(NiceColourPalette)
 }
 \keyword{datasets}
