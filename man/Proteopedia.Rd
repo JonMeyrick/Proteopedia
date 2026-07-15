@@ -61,7 +61,7 @@ item{MCS_ER_Autophagosome}{Involvement of the protein in endoplasmic reticulum (
 Created by Jon Meyrick, compiling data from various sources
 }
 \usage{
-Proteopedia
+data(Proteopedia)
 }
 \description{
 Proteopedia is a comprehensive dataset of the Human proteome, with various annotations of interest in proteomic analysis

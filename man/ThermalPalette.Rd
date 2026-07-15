@@ -11,7 +11,7 @@ A character string of 46 length.
 Created by Jon Meyrick
 }
 \usage{
-ThermalPalette
+data(ThermalPalette)
 }
 \description{
 ThermalPalette is a string of hexademical colour codes which allow for plotting of 46 continuous

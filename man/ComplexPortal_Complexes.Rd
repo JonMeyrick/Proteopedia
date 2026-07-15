@@ -11,7 +11,7 @@ An object of class \code{data.frame} with 8985 rows and 6 columns.
 Created by Jon Meyrick
 }
 \usage{
-ComplexPortal_Complexes
+data(ComplexPortal_Complexes)
 }
 \description{
 Proteins assigned to complexes within the Complex Portal database

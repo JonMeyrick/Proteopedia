@@ -20,6 +20,8 @@
 #' @import Proteopedia
 #' @import limma
 #' @import mzR
+#' @import minpack.lm
+#' @import nlme
 #' @import org.Hs.eg.db
 #' @import patchwork
 #' @import Peptides

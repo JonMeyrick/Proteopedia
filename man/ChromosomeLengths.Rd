@@ -15,7 +15,7 @@ item{Length}{Length of Chromosome in base-pairs}
 Created by Jon Meyrick, by extracting lengths from the Human Reference Genome GENCODE V49 (GRCh38.p14)
 }
 \usage{
-ChromosomeLengths
+data(ChromosomeLengths)
 }
 \description{
 Chromosome Lengths

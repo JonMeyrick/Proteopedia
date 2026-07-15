@@ -11,7 +11,7 @@ An object of class \code{data.frame} with 24560 rows and 6 columns.
 Created by Jon Meyrick
 }
 \usage{
-CORUM_Complexes
+data(CORUM_Complexes)
 }
 \description{
 Proteins assigned to complexes within the CORUM database

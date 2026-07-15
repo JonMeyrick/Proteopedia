@@ -11,7 +11,7 @@ An object of class \code{data.table} (inherits from \code{data.frame}) with 1942
 Created by Jon Meyrick
 }
 \usage{
-GenomicMapping
+data(GenomicMapping)
 }
 \description{
 Genomic Mapping

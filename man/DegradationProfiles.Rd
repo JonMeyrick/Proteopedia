@@ -11,7 +11,7 @@ An object of class \code{data.table} (inherits from \code{data.frame}) with 3113
 Created by Jon Meyrick
 }
 \usage{
-DegradationProfiles
+data(DegradationProfiles)
 }
 \description{
 Degradation Profiles

@@ -1,11 +1,18 @@
 Package: Proteopedia
-Title: What the Package Does (One Line, Title Case)
+Title: Streamlined Analysis Tooklit for Post-Acquisition Proteomic Data
 Version: 0.0.0.9000
+Date: 2026-07-15
 Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
+    person("Jonathan", "Meyrick", , "jonathanj.meyrick@gmail.com", role = c("aut", "cre"))
+Maintainer: Jonathan Meyrick <jonathanj.meyrick@gmail.com>
+Description: Package contains functions which can be appled to outputs from DIA-NN acquisition of proteomic data. This
+    includes label-free or pulse-SILAC data. Functions automate analysis of conditional comparisons, standardising analysis 
+    from DIA-NN to protein- and ontology-level outputs. This toolkit is recommended for newer proteomics users, to rapidly
+    analyse data, or proteomic facilities for high-throughput data processing.
+Depends: arrow, BiocGenerics, clusterProfiler, data.table, DescTools, DOSE, dplyr, enrichplot, forcats, ggplot2, ggrepel, 
+    ggside, ggupset, grid, highcharter, htmlwidgets, imputeLCMD, iq, limma, mzR, minpack.lm, nlme, org.Hs.eg.db, patchwork, 
+    Peptides, ReactomePA, stats, stringr, tidyr
+License: GPL (>= 3)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 8.0.0

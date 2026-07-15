@@ -11,7 +11,7 @@ A character string of 24 length,
 Created by Jon Meyrick
 }
 \usage{
-NiceColourPalette
+data(NiceColourPalette)
 }
 \description{
 NiceColourPalette is a string of hexademical colour codes which allow for plotting of 24 distinct

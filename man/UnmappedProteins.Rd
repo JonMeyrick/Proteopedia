@@ -11,7 +11,7 @@ A data table with 114 rows and 9 columns.
 Created by Jon Meyrick
 }
 \usage{
-UnmappedProteins
+data(UnmappedProteins)
 }
 \description{
 Contains proteins which cannot be mapped to Chromosomes using GenomicMapping. In most cases, this is because the Gene identifer has been changed.
