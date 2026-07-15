@@ -7,5 +7,5 @@
 Reset_Dev()
 }
 \description{
-Reset Developer
+Repeat the dev.off() function until the and error is generated. Prevents remaining in developer
 }
