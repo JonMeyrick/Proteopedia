@@ -1,2 +1,1 @@
-# Proteopedia
-# Package can be installed by running pak::pak("JonMeyrick/Proteopedia")
+# Proteopedia: Package can be installed by running pak::pak("JonMeyrick/Proteopedia")
